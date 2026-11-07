@@ -34,7 +34,9 @@ Each detail is generated to fit the others:
 
 ## Persona codes
 
-Generation is deterministic. Each persona has a code such as `K7Q2MX` (or `K7Q2MX-201034` after rerolling parts of it). The same code with the same filters always produces the same persona, so you can keep the code in your case notes. Each part (name, places, background, daily life, interests, online presence) can be rerolled on its own.
+Generation is deterministic. Each persona has a code such as `K7Q2MX.261107`, or `K7Q2MX-201034.261107` after rerolling parts of it. The last six digits are the date the legend was created (YYMMDD). The persona's life is frozen at that date, so the same code with the same filters rebuilds the exact same persona months or years later: same birthday, same service, same job. Only the age shown and the Shabbat and holiday calendar move with today's date. Keep the code in your case notes. Each part (name, places, background, daily life, interests, online presence) can be rerolled on its own.
+
+Shabbat times and "today" in the calendar follow Israel's clock, wherever you run the tool from.
 
 Save legends in the browser, or export them as text or JSON (copy or download).
 

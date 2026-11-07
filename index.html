@@ -1303,7 +1303,19 @@ function genPlatforms(p) {
   return out;
 }
 
-function genCalendar(p, now) {
+// The viewer may be anywhere; Shabbat and holidays follow Israel's wall clock
+function israelWallClock(d) {
+  try {
+    const f = new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Jerusalem', year: 'numeric', month: 'numeric', day: 'numeric', hour: 'numeric', minute: 'numeric', hourCycle: 'h23' });
+    const x = Object.fromEntries(f.formatToParts(d).map(part => [part.type, part.value]));
+    return new Date(+x.year, +x.month - 1, +x.day, +x.hour, +x.minute);
+  } catch {
+    return d;
+  }
+}
+
+function genCalendar(p, viewerNow) {
+  const now = israelWallClock(viewerNow);
   const here = p.lives || p.place, today = isoDate(now);
   const tags = new Set([p.group, p.comm]);
   if (p.name.origin) for (const o of [p.name.origin.father, p.name.origin.mother]) { if (o === 'Former USSR') tags.add('fsu'); if (o === 'Morocco') tags.add('morocco'); }
@@ -1410,7 +1422,12 @@ function storyEn(p) {
   return s.join(' ');
 }
 
-function generate(seed, opts, salts, now = new Date()) {
+const ageOn = (dob, day) => day.getFullYear() - dob.getFullYear() - (day.getMonth() * 100 + day.getDate() < dob.getMonth() * 100 + dob.getDate() ? 1 : 0);
+
+// The persona is frozen at its creation date, so a code always rebuilds the same legend;
+// only the age and the calendar move with `today`.
+function generate(seed, opts, salts, created = new Date(), today = new Date()) {
+  const now = new Date(created.getFullYear(), created.getMonth(), created.getDate());
   const core = rngFor(seed, 'core', opts.community, opts.gender, opts.ageMin, opts.ageMax, opts.city || 'any');
   const comm = resolveCommunity(core, { ...opts, city: opts.city || 'any' });
   const group = COMM[comm].group;
@@ -1423,6 +1440,7 @@ function generate(seed, opts, salts, now = new Date()) {
 
   const p = {
     seed, comm, commLabel: COMM[comm].label, group, gender, genderLabel: gender === 'm' ? 'Male' : 'Female', age, birthYear,
+    ageToday: Math.max(age, ageOn(dob, today)), created: isoDate(now),
     dob: `${dob.getDate()} ${MONTHS[dob.getMonth()]} ${birthYear}`,
     dobIso: `${birthYear}-${String(dob.getMonth() + 1).padStart(2, '0')}-${String(dob.getDate()).padStart(2, '0')}`,
   };
@@ -1445,24 +1463,32 @@ function generate(seed, opts, salts, now = new Date()) {
   p.locale = group === 'jewish'
     ? 'Timezone Asia/Jerusalem (UTC+2, UTC+3 in summer). Browser language he-IL; keyboards Hebrew and English.'
     : 'Timezone Asia/Jerusalem (UTC+2, UTC+3 in summer). Browser language Arabic or he-IL; keyboards Arabic, Hebrew and English.';
-  p.calendar = genCalendar(p, now);
+  p.calendar = genCalendar(p, today);
   p.story = { en: storyEn(p), he: storyHe(p) };
   return p;
 }
 
-/* ---------- Persona code ---------- */
+/* ---------- Persona code: SEED[-salts][.YYMMDD creation date] ---------- */
 const SALT_KEYS = ['name', 'place', 'life', 'interests', 'online', 'daily'];
 const zeroSalts = () => Object.fromEntries(SALT_KEYS.map(k => [k, 0]));
-function encodeCode(seed, salts) {
+const yymmdd = d => `${String(d.getFullYear() % 100).padStart(2, '0')}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`;
+function encodeCode(seed, salts, created) {
   const s = SALT_KEYS.map(k => salts[k].toString(36)).join('');
-  return /^0+$/.test(s) ? seed : `${seed}-${s}`;
+  return `${/^0+$/.test(s) ? seed : `${seed}-${s}`}.${yymmdd(created)}`;
 }
+/** Older codes have no date; they decode with `created: null` and are treated as created today. */
 function decodeCode(code) {
   const salts = zeroSalts();
-  const m = code.match(/^(.+)-([0-9a-z]{5,6})$/i);
-  if (!m) return { seed: code, salts };
-  SALT_KEYS.forEach((k, i) => { salts[k] = m[2][i] ? parseInt(m[2][i], 36) : 0; });
-  return { seed: m[1], salts };
+  const m = code.trim().match(/^([^.-]+)(?:-([0-9a-z]{5,6}))?(?:\.(\d{6}))?$/i);
+  if (!m) return { seed: code.trim(), salts, created: null };
+  if (m[2]) SALT_KEYS.forEach((k, i) => { salts[k] = m[2][i] ? parseInt(m[2][i], 36) : 0; });
+  let created = null;
+  if (m[3]) {
+    const [y, mo, d] = [2000 + +m[3].slice(0, 2), +m[3].slice(2, 4) - 1, +m[3].slice(4, 6)];
+    const date = new Date(y, mo, d);
+    if (date.getMonth() === mo && date.getDate() === d) created = date;
+  }
+  return { seed: m[1], salts, created };
 }
 function randomSeed() {
   const abc = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -1476,7 +1502,7 @@ function legendText(p, code) {
   const o = p.name.origin, here = p.lives || p.place, L = [];
   L.push(`LEGEND ${code}`, '');
   L.push(`Name: ${p.name.native}${p.name.he !== p.name.native ? ` / ${p.name.he}` : ''} / ${p.name.en}`);
-  L.push(`${p.genderLabel}, ${p.age} (born ${p.dob}) · ${p.commLabel}`);
+  L.push(`${p.genderLabel}, ${p.ageToday} (born ${p.dob}) · ${p.commLabel}`);
   if (p.denom) L.push(`Church: ${p.denom.en}`);
   if (o) L.push(`Family origin: ${o.text}`);
   if (o && o.aliyah) L.push(`Born in ${o.aliyah.en}; made aliyah in ${o.aliyah.year}`);
@@ -1498,7 +1524,7 @@ function legendText(p, code) {
   L.push('Rhythm:', ...p.rhythm.map(x => `- ${x}`), `- ${p.locale}`);
   if (p.calendar.callout) L.push(`- ${p.calendar.callout.title}: ${p.calendar.callout.text}`);
   if (p.calendar.events.length) L.push('', 'Coming up:', ...p.calendar.events.map(e => `- ${eventDate(e, 0)}: ${e.name}. ${e.tip}`));
-  L.push('', `Generated for ${here.shortEn} on ${isoDate(new Date())}.`);
+  L.push('', `Legend created ${p.created}; life details are as of that date. Lives in ${here.shortEn}.`);
   return L.join('\n');
 }
 const personaJson = (p, code, settings) => JSON.stringify({ code, settings, generated: isoDate(new Date()), persona: p },
@@ -1521,7 +1547,7 @@ if (typeof document !== 'undefined') {
   const TABS = [['overview', 'Overview'], ['life', 'Life'], ['online', 'Online'], ['calendar', 'Calendar']];
   const TL_LABEL = { prep: 'Mechina', svc: 'Service', trip: 'Trip', study: 'Degree', ms: "Master's" };
 
-  const state = { seed: randomSeed(), salts: zeroSalts(), tab: store.get('ispg.tab', 'overview'), p: null, code: '' };
+  const state = { seed: randomSeed(), salts: zeroSalts(), created: new Date(), tab: store.get('ispg.tab', 'overview'), p: null, code: '' };
   if (!TABS.some(([k]) => k === state.tab)) state.tab = 'overview';
 
   function fillCities() {
@@ -1681,11 +1707,11 @@ if (typeof document !== 'undefined') {
     return `
     <div class="head">
       <div class="who">
-        <div class="eyebrow"><span>Legend</span><span>${esc(code)}</span></div>
+        <div class="eyebrow"><span>Legend</span><span>${esc(code)}</span><span>· created ${esc(isoLabel(p.created, true))}</span></div>
         <h2 class="name" dir="auto" lang="${p.group === 'jewish' ? 'he' : 'ar'}">${esc(p.name.native)}</h2>
         <div class="name-sub"><span>${esc(p.name.en)}</span>${p.name.he !== p.name.native ? `<span dir="rtl" lang="he">${esc(p.name.he)}</span>` : ''}</div>
         <div class="pills">
-          <span class="pill accent">${esc(p.commLabel)}</span><span class="pill">${p.genderLabel}</span><span class="pill">${p.age}</span>
+          <span class="pill accent">${esc(p.commLabel)}</span><span class="pill">${p.genderLabel}</span><span class="pill">${p.ageToday}</span>
           <span class="pill">Born ${esc(p.dob)}</span><span class="pill">${esc(here.shortEn)}</span>
         </div>
       </div>
@@ -1711,8 +1737,8 @@ if (typeof document !== 'undefined') {
 
   function render() {
     const opts = readOpts();
-    state.code = encodeCode(state.seed, state.salts);
-    state.p = generate(state.seed, opts, state.salts);
+    state.code = encodeCode(state.seed, state.salts, state.created);
+    state.p = generate(state.seed, opts, state.salts, state.created);
     state.opts = opts;
     const file = $('#file');
     file.innerHTML = view(state.p, state.code);
@@ -1763,7 +1789,7 @@ if (typeof document !== 'undefined') {
   function saveCurrent() {
     const p = state.p, list = store.get('ispg.saved', []);
     if (list.some(s => s.code === state.code && JSON.stringify(s.settings) === JSON.stringify(state.opts))) { toast('Already saved'); return; }
-    list.unshift({ code: state.code, settings: state.opts, name: p.name.en, native: p.name.native, comm: p.commLabel, age: p.age, city: (p.lives || p.place).shortEn });
+    list.unshift({ code: state.code, settings: state.opts, name: p.name.en, native: p.name.native, comm: p.commLabel, age: p.ageToday, city: (p.lives || p.place).shortEn });
     if (!store.set('ispg.saved', list.slice(0, 40))) { toast('This browser blocks saving'); return; }
     renderSaved();
     toast('Saved in this browser');
@@ -1777,7 +1803,7 @@ if (typeof document !== 'undefined') {
     document.querySelector(`input[name="gender"][value="${s.settings.gender}"]`).checked = true;
     $('#ageMin').value = s.settings.ageMin; $('#ageMax').value = s.settings.ageMax;
     const d = decodeCode(s.code);
-    state.seed = d.seed; state.salts = d.salts;
+    state.seed = d.seed; state.salts = d.salts; state.created = d.created || new Date();
     render();
     $('#file').scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
@@ -1792,13 +1818,14 @@ if (typeof document !== 'undefined') {
   $('#newPersona').addEventListener('click', () => {
     state.seed = randomSeed();
     state.salts = zeroSalts();
+    state.created = new Date();
     $('#seed').value = '';
     render();
   });
   $('#controls').addEventListener('submit', ev => {
     ev.preventDefault();
     const v = $('#seed').value.trim();
-    if (v) { const d = decodeCode(v); state.seed = d.seed; state.salts = d.salts; }
+    if (v) { const d = decodeCode(v); state.seed = d.seed; state.salts = d.salts; state.created = d.created || new Date(); }
     $('#seed').blur();
     render();
   });
