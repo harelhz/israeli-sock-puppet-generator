@@ -1,0 +1,1132 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Israeli Sock Puppet Generator</title>
+<meta name="description" content="Generate consistent Israeli research personas (sock puppets / legends) for OSINT. Runs fully in the browser.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Frank+Ruhl+Libre:wght@500;700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+Hebrew:wght@400;500;600&family=Noto+Sans+Arabic:wght@400;600&display=swap">
+<style>
+/* Layout: control rail on the left, the persona "legend file" on the right; stacks to one column on phones */
+:root {
+  --bg: #eceff5;
+  --surface: #ffffff;
+  --surface-2: #f4f6fb;
+  --ink: #141a2b;
+  --muted: #586177;
+  --line: #d5dbe7;
+  --accent: #2443b0;
+  --accent-ink: #ffffff;
+  --accent-soft: #e2e8fb;
+  --warn: #8f5200;
+  --warn-soft: #fbf0dc;
+  --font-display: "Frank Ruhl Libre", "Noto Sans Arabic", Georgia, serif;
+  --font-body: "IBM Plex Sans Hebrew", "Noto Sans Arabic", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0e121b; --surface: #161b27; --surface-2: #1c2232; --ink: #e7eaf3; --muted: #98a1b6;
+    --line: #2a3246; --accent: #8ea4ff; --accent-ink: #0e121b; --accent-soft: #222b4b;
+    --warn: #f0b35a; --warn-soft: #2d2414; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0e121b; --surface: #161b27; --surface-2: #1c2232; --ink: #e7eaf3; --muted: #98a1b6;
+  --line: #2a3246; --accent: #8ea4ff; --accent-ink: #0e121b; --accent-soft: #222b4b;
+  --warn: #f0b35a; --warn-soft: #2d2414; color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0; background: var(--bg); color: var(--ink);
+  font-family: var(--font-body); font-size: 15px; line-height: 1.5;
+}
+[hidden] { display: none !important; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.wrap {
+  max-width: 1180px; margin: 0 auto;
+  padding-block: calc(28px + env(safe-area-inset-top, 0px)) calc(48px + env(safe-area-inset-bottom, 0px));
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+
+.top { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 12px 24px; margin-bottom: 22px; }
+.top h1 { font-family: var(--font-display); font-weight: 700; font-size: clamp(28px, 4vw, 40px); line-height: 1.1; margin: 0; text-wrap: balance; }
+.top p { margin: 6px 0 0; color: var(--muted); max-width: 62ch; }
+.local { font-family: var(--font-mono); font-size: 12px; color: var(--muted); display: inline-flex; align-items: center; gap: 8px; }
+.local::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: #2f9e5b; }
+
+.layout { display: grid; grid-template-columns: 290px minmax(0, 1fr); gap: 24px; align-items: start; }
+@media (max-width: 880px) { .layout { grid-template-columns: minmax(0, 1fr); } }
+
+.rail { display: grid; gap: 16px; }
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 18px; }
+.controls { display: grid; gap: 16px; }
+.field { display: grid; gap: 6px; border: 0; margin: 0; padding: 0; min-width: 0; }
+.lbl { font-size: 12px; font-weight: 600; letter-spacing: .07em; text-transform: uppercase; color: var(--muted); padding: 0; }
+.hint { font-size: 13px; color: var(--muted); margin: 0; }
+
+select, input[type="text"], input[type="number"] {
+  font: inherit; color: var(--ink); background: var(--surface-2);
+  border: 1px solid var(--line); border-radius: 6px; padding: 8px 10px; width: 100%; min-width: 0;
+}
+input[type="text"]#seed { font-family: var(--font-mono); letter-spacing: .04em; }
+
+.seg { position: relative; display: grid; grid-template-columns: repeat(3, 1fr); border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+.seg input { position: absolute; opacity: 0; pointer-events: none; }
+.seg label { text-align: center; padding: 8px 4px; cursor: pointer; background: var(--surface-2); border-right: 1px solid var(--line); font-weight: 500; }
+.seg label:last-of-type { border-right: 0; }
+.seg input:checked + label { background: var(--accent); color: var(--accent-ink); }
+.seg input:focus-visible + label { outline: 2px solid var(--accent); outline-offset: -3px; }
+
+.ages { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 8px; color: var(--muted); }
+
+.btn {
+  font: inherit; font-weight: 600; border-radius: 6px; padding: 9px 14px;
+  border: 1px solid var(--line); background: var(--surface); color: var(--ink);
+  cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 7px;
+}
+.btn:hover { border-color: var(--accent); }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.btn.primary:hover { filter: brightness(1.08); }
+.btn.small { font-size: 12.5px; padding: 4px 9px; font-weight: 500; }
+.btn.link { background: transparent; border-color: transparent; color: var(--accent); padding: 4px 6px; font-size: 13px; font-weight: 600; }
+.btn.link:hover { border-color: var(--line); }
+.btn svg { width: 14px; height: 14px; flex: none; }
+.btn-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+
+/* Legend file */
+.file { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+.strip {
+  display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 6px 12px;
+  padding: 10px 20px; background: var(--surface-2); border-bottom: 1px solid var(--line);
+  font-family: var(--font-mono); font-size: 12px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted);
+}
+.strip .code { color: var(--ink); letter-spacing: .06em; text-transform: none; }
+
+.ident { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-start; gap: 16px; padding: 26px 20px 22px; }
+.who { min-width: 0; }
+.name-native { font-family: var(--font-display); font-weight: 700; font-size: clamp(34px, 6vw, 54px); line-height: 1.08; margin: 0; overflow-wrap: anywhere; }
+.name-alt { font-family: var(--font-display); font-size: 22px; color: var(--muted); margin-top: 2px; }
+.name-native, .name-alt { text-align: left; }
+.name-en { font-size: 19px; font-weight: 500; margin-top: 6px; }
+.meta { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; margin-top: 12px; color: var(--muted); font-size: 14px; font-variant-numeric: tabular-nums; }
+.tag { background: var(--accent-soft); color: var(--accent); padding: 1px 9px; border-radius: 999px; font-weight: 600; font-size: 12.5px; }
+
+.grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1px; background: var(--line); border-top: 1px solid var(--line); }
+.sec { background: var(--surface); padding: 18px 20px 20px; min-width: 0; }
+.sec.wide { grid-column: 1 / -1; }
+@media (max-width: 680px) { .grid { grid-template-columns: minmax(0, 1fr); } }
+.sec-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 12px; min-height: 28px; }
+.sec-head h2 { font-size: 12px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); margin: 0; font-weight: 600; }
+
+.kv { display: grid; grid-template-columns: 8.5rem minmax(0, 1fr); gap: 10px 14px; margin: 0; }
+.kv dt { color: var(--muted); font-size: 13.5px; padding-top: 1px; }
+.kv dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+.sub { display: block; color: var(--muted); font-size: 13.5px; }
+.he, .ar { font-family: var(--font-body); }
+@media (max-width: 440px) {
+  .kv { grid-template-columns: minmax(0, 1fr); gap: 2px; }
+  .kv dd { margin-bottom: 10px; }
+}
+
+.chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.chip { border: 1px solid var(--line); background: var(--surface-2); border-radius: 999px; padding: 4px 11px; font-size: 14px; }
+.chip .he { color: var(--muted); margin-inline-start: 6px; }
+
+.online { display: grid; gap: 18px; }
+.handles { display: flex; flex-wrap: wrap; gap: 8px; }
+.handle {
+  font: 500 13.5px var(--font-mono); color: var(--ink); background: var(--surface-2);
+  border: 1px dashed var(--line); border-radius: 6px; padding: 5px 10px; cursor: pointer;
+}
+.handle:hover { border-color: var(--accent); border-style: solid; }
+.copyrow {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; align-items: start;
+  padding: 10px 12px; background: var(--surface-2); border: 1px solid var(--line); border-radius: 8px;
+}
+.copyrow p { margin: 0; overflow-wrap: anywhere; }
+.copyrow .lbl { display: block; margin-bottom: 4px; }
+.prompt { font-size: 14px; }
+
+.list { margin: 0; padding-inline-start: 18px; display: grid; gap: 6px; }
+
+/* OPSEC */
+.opsec { margin-top: 16px; }
+.opsec h2 { font-family: var(--font-display); font-size: 24px; line-height: 1.2; margin: 0 0 4px; }
+.checks { list-style: none; margin: 14px 0 0; padding: 0; display: grid; gap: 10px; }
+.checks label { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 10px; align-items: start; cursor: pointer; }
+.checks input { margin-top: 4px; accent-color: var(--accent); }
+.note { margin-top: 16px; padding: 12px 14px; background: var(--warn-soft); border-radius: 8px; font-size: 14px; }
+.note strong { color: var(--warn); }
+
+footer { margin-top: 28px; color: var(--muted); font-size: 13px; display: flex; flex-wrap: wrap; gap: 6px 18px; }
+footer a { color: var(--accent); }
+
+.toast {
+  position: fixed; left: 50%; bottom: calc(20px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%);
+  background: var(--ink); color: var(--bg); padding: 8px 14px; border-radius: 6px; font-size: 14px;
+  opacity: 0; transition: opacity .15s; pointer-events: none; z-index: 30;
+}
+.toast.show { opacity: 1; }
+.overlay {
+  position: fixed; inset: 0; z-index: 40; background: rgba(10, 14, 24, .55);
+  display: grid; place-items: center;
+  padding: 16px max(16px, env(safe-area-inset-right, 0px)) 16px max(16px, env(safe-area-inset-left, 0px));
+}
+.dialog { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 18px; width: min(640px, 100%); display: grid; gap: 12px; }
+.dialog textarea { width: 100%; min-height: 220px; font: 13px/1.5 var(--font-mono); color: var(--ink); background: var(--surface-2); border: 1px solid var(--line); border-radius: 6px; padding: 10px; resize: vertical; }
+.dialog .row { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
+
+@media (prefers-reduced-motion: no-preference) {
+  .file.fresh { animation: settle .18s ease-out; }
+  @keyframes settle { from { opacity: .4; } to { opacity: 1; } }
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div>
+      <h1>Israeli Sock Puppet Generator</h1>
+      <p>Build a consistent Israeli research persona (a "legend") for OSINT work: name in Hebrew or Arabic, hometown, army or national service, studies, job, interests, handles and bios that all fit together.</p>
+    </div>
+    <span class="local">Runs locally · nothing is sent anywhere</span>
+  </header>
+
+  <div class="layout">
+    <aside class="rail">
+      <form class="panel controls" id="controls" autocomplete="off">
+        <div class="field">
+          <label class="lbl" for="community">Community</label>
+          <select id="community">
+            <option value="any">Any (weighted by population)</option>
+            <option value="secular">Secular Jewish</option>
+            <option value="traditional">Traditional Jewish (Masorti)</option>
+            <option value="religious">Religious-Zionist</option>
+            <option value="muslim">Arab Muslim</option>
+            <option value="christian">Arab Christian</option>
+            <option value="druze">Druze</option>
+          </select>
+        </div>
+        <fieldset class="field">
+          <legend class="lbl">Gender</legend>
+          <div class="seg">
+            <input type="radio" name="gender" id="g-any" value="any" checked><label for="g-any">Any</label>
+            <input type="radio" name="gender" id="g-m" value="m"><label for="g-m">Male</label>
+            <input type="radio" name="gender" id="g-f" value="f"><label for="g-f">Female</label>
+          </div>
+        </fieldset>
+        <div class="field">
+          <span class="lbl" id="age-lbl">Age range</span>
+          <div class="ages" role="group" aria-labelledby="age-lbl">
+            <input type="number" id="ageMin" min="20" max="65" value="22" aria-label="Minimum age">
+            <span>to</span>
+            <input type="number" id="ageMax" min="20" max="65" value="45" aria-label="Maximum age">
+          </div>
+        </div>
+        <div class="field">
+          <label class="lbl" for="seed">Persona code</label>
+          <input type="text" id="seed" spellcheck="false" maxlength="40">
+          <p class="hint">Same code and filters give the same persona. Paste a saved code and press Enter to restore it.</p>
+        </div>
+        <button type="button" class="btn primary" id="newPersona">New persona</button>
+      </form>
+
+      <div class="panel field">
+        <span class="lbl">Export</span>
+        <div class="btn-row">
+          <button type="button" class="btn" id="copyText">Copy legend</button>
+          <button type="button" class="btn" id="copyJson">Copy JSON</button>
+        </div>
+        <p class="hint">Paste it into your case notes so every detail stays consistent.</p>
+      </div>
+    </aside>
+
+    <main>
+      <article class="file" id="file" aria-live="polite"></article>
+
+      <section class="panel opsec" aria-labelledby="opsec-h">
+        <h2 id="opsec-h">Before this persona goes live</h2>
+        <p class="hint">A legend is only as good as the environment around it.</p>
+        <ul class="checks">
+          <li><label><input type="checkbox" id="c1"><span>Run it in an isolated environment (a VM or a dedicated browser profile), never alongside your own accounts.</span></label></li>
+          <li><label><input type="checkbox" id="c2"><span>Match the network and device to the persona: Israeli exit IP, timezone Asia/Jerusalem, browser language and keyboard from the rhythm section.</span></label></li>
+          <li><label><input type="checkbox" id="c3"><span>Use a phone number you control from a real provider. Never use a made-up number; it belongs to someone.</span></label></li>
+          <li><label><input type="checkbox" id="c4"><span>Use an AI-generated or licensed photo. Never use a real person's pictures, and reverse-image-search your photo before upload.</span></label></li>
+          <li><label><input type="checkbox" id="c5"><span>Age the account slowly with ordinary activity that follows the persona's calendar (Shabbat, Ramadan, holidays).</span></label></li>
+          <li><label><input type="checkbox" id="c6"><span>Keep a legend log of everything the persona says and does.</span></label></li>
+          <li><label><input type="checkbox" id="c7"><span>Stay within your mandate: passive collection by default. Interacting with targets, joining closed groups, or anything deceptive needs legal sign-off and rules of engagement. Most platforms ban fake accounts in their terms.</span></label></li>
+        </ul>
+        <div class="note"><strong>Not generated on purpose:</strong> national ID (Teudat Zehut) numbers and phone numbers. Fake ones can collide with real people's, and fake ID numbers have no legitimate OSINT use.</div>
+      </section>
+    </main>
+  </div>
+
+  <footer>
+    <span>Open source under the MIT license.</span>
+    <a href="https://github.com/harelhz/israeli-sock-puppet-generator" rel="noopener">Source on GitHub</a>
+  </footer>
+</div>
+
+<div class="toast" id="toast" role="status"></div>
+<div class="overlay" id="overlay" hidden>
+  <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="ov-title">
+    <div class="row">
+      <strong id="ov-title">Copy this text</strong>
+      <button type="button" class="btn small" id="ov-close">Close</button>
+    </div>
+    <textarea id="ov-text" readonly></textarea>
+    <p class="hint">Your browser blocked automatic copying. The text is selected: press Ctrl+C (⌘C on Mac).</p>
+  </div>
+</div>
+
+<script>
+'use strict';
+
+/* ---------- Seeded randomness ---------- */
+function hashSeed(str) {
+  let h = 1779033703 ^ str.length;
+  for (let i = 0; i < str.length; i++) {
+    h = Math.imul(h ^ str.charCodeAt(i), 3432918353);
+    h = (h << 13) | (h >>> 19);
+  }
+  h = Math.imul(h ^ (h >>> 16), 2246822507);
+  h = Math.imul(h ^ (h >>> 13), 3266489909);
+  return (h ^= h >>> 16) >>> 0;
+}
+function mulberry32(a) {
+  return () => {
+    a |= 0; a = (a + 0x6D2B79F5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+const rngFor = (...parts) => mulberry32(hashSeed(parts.join('|')));
+const pick = (r, a) => a[Math.floor(r() * a.length)];
+const int = (r, lo, hi) => lo + Math.floor(r() * (hi - lo + 1));
+const chance = (r, p) => r() < p;
+function weighted(r, entries) {
+  const list = Array.isArray(entries) ? entries : Object.entries(entries);
+  const total = list.reduce((s, [, w]) => s + w, 0);
+  let x = r() * total;
+  for (const [v, w] of list) { if ((x -= w) < 0) return v; }
+  return list[list.length - 1][0];
+}
+function sample(r, arr, n) {
+  const a = arr.slice();
+  for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(r() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; }
+  return a.slice(0, n);
+}
+const parse = s => s.trim().split(',').map(x => x.trim().split('|'));
+
+/* ---------- Communities ---------- */
+const COMM = {
+  secular:     { label: 'Secular Jewish', group: 'jewish', w: 40 },
+  traditional: { label: 'Traditional Jewish (Masorti)', group: 'jewish', w: 25 },
+  religious:   { label: 'Religious-Zionist', group: 'jewish', w: 12 },
+  muslim:      { label: 'Arab Muslim', group: 'arab', w: 13 },
+  christian:   { label: 'Arab Christian', group: 'arab', w: 4 },
+  druze:       { label: 'Druze', group: 'druze', w: 6 },
+};
+
+/* ---------- Names: Jewish entries are he|en, Arab and Druze entries are ar|he|en ---------- */
+const NAMES = {
+  jewM: parse(`נועם|Noam,איתי|Itay,יונתן|Yonatan,עומר|Omer,דניאל|Daniel,איתמר|Itamar,אורי|Uri,עידו|Ido,יואב|Yoav,אריאל|Ariel,רועי|Roy,גיא|Guy,תומר|Tomer,אלון|Alon,עמית|Amit,ניר|Nir,אסף|Asaf,אופיר|Ofir,שחר|Shahar,יובל|Yuval,אביב|Aviv,מתן|Matan,אייל|Eyal,רון|Ron,ליאור|Lior,אור|Or,בן|Ben,דור|Dor,נדב|Nadav,עידן|Idan,שי|Shai,אלעד|Elad,אוהד|Ohad,טל|Tal,ירון|Yaron,אבי|Avi,משה|Moshe,דוד|David,יוסי|Yossi,אליה|Eliya,מאור|Maor,אושר|Osher,חן|Chen,ברק|Barak,רז|Raz,עדן|Eden,יהונתן|Yehonatan,שגיא|Sagi,ליאם|Liam,אריה|Arye`),
+  jewMRel: parse(`יהודה|Yehuda,אלחנן|Elchanan,נתנאל|Netanel,אליעזר|Eliezer,הראל|Harel,אביתר|Evyatar,שילה|Shilo,יאיר|Yair,עמיחי|Amichai,אחיה|Achiya,מאיר|Meir,שמואל|Shmuel,אהרון|Aharon,נריה|Neria,ידידיה|Yedidya,אוריה|Uriya,בנימין|Binyamin,חנניה|Hananya,אליאב|Eliav,מתניה|Matanya`),
+  jewF: parse(`נועה|Noa,מאיה|Maya,תמר|Tamar,שירה|Shira,יעל|Yael,מיכל|Michal,רוני|Roni,שני|Shani,ליה|Lia,עדי|Adi,הילה|Hila,ענבל|Inbal,קרן|Keren,גל|Gal,דנה|Dana,מור|Mor,ספיר|Sapir,רותם|Rotem,אביגיל|Avigail,הדר|Hadar,עינב|Einav,ליאת|Liat,אורית|Orit,סיון|Sivan,טל|Tal,נטע|Neta,אלה|Ella,מעיין|Maayan,שקד|Shaked,רעות|Reut,לירון|Liron,אגם|Agam,רחל|Rachel,שרה|Sara,ליהי|Lihi,שחר|Shahar,יובל|Yuval,דניאל|Danielle,מאי|May,אור|Or`),
+  jewFRel: parse(`הודיה|Hodaya,תהילה|Tehila,מוריה|Moriya,אילה|Ayala,אפרת|Efrat,נחמה|Nechama,אביה|Aviya,הלל|Hallel,אורה|Ora,שלהבת|Shalhevet,אסנת|Osnat,רננה|Renana,יהודית|Yehudit,אמונה|Emuna,נעמה|Naama,אודיה|Odaya,טליה|Talya,אביטל|Avital`),
+  surA: parse(`פרידמן|Friedman,כץ|Katz,שפירא|Shapira,רוזנברג|Rosenberg,גולדברג|Goldberg,רבינוביץ|Rabinovich,וייס|Weiss,קליין|Klein,זילברמן|Silberman,גרינברג|Greenberg,כוגן|Kogan,לוין|Levin,ברגר|Berger,הורוביץ|Horowitz,שוורץ|Schwartz,פישר|Fischer,רוזן|Rosen,זלצמן|Saltzman,קפלן|Kaplan,גרוס|Gross`),
+  surM: parse(`מזרחי|Mizrahi,פרץ|Peretz,ביטון|Biton,דהן|Dahan,אזולאי|Azoulay,מלכה|Malka,עמר|Amar,אוחיון|Ohayon,חדד|Hadad,גבאי|Gabay,אדרי|Edri,סויסה|Swissa,וקנין|Vaknin,שרעבי|Sharabi,חזן|Hazan,שושן|Shoshan,סעדה|Saada,רביבו|Revivo,נגר|Nagar,מימון|Maimon,בן חיים|Ben Haim,אבוטבול|Abutbul,אלקיים|Elkayam,צדוק|Tzadok,עובדיה|Ovadia,אלמליח|Elmalich,בוזגלו|Buzaglo,טובול|Tubul`),
+  surH: parse(`כהן|Cohen,לוי|Levi,אברהם|Avraham,יוסף|Yosef,דוד|David,בן דוד|Ben David,אהרון|Aharon,יעקב|Yaakov,ברק|Barak,שגיא|Sagi,אלון|Alon,טל|Tal,גל|Gal,אורן|Oren,אלמוג|Almog,שמעוני|Shimoni,זכאי|Zakai,נחום|Nachum,בר|Bar,רגב|Regev,גולן|Golan,אשכנזי|Ashkenazi`),
+  musM: parse(`محمد|מוחמד|Mohammad,أحمد|אחמד|Ahmad,محمود|מחמוד|Mahmoud,يوسف|יוסף|Yousef,عمر|עומר|Omar,علي|עלי|Ali,خالد|ח'אלד|Khaled,إبراهيم|איברהים|Ibrahim,حسن|חסן|Hassan,سامي|סאמי|Sami,رامي|ראמי|Rami,أمير|אמיר|Amir,كريم|כרים|Karim,آدم|אדם|Adam,مراد|מוראד|Murad,ناصر|נאסר|Nasser,وسيم|וסים|Wasim,فراس|פראס|Firas,باسل|באסל|Basel,طارق|טארק|Tarek,أنس|אנס|Anas,عبد الله|עבדאללה|Abdallah,هيثم|היית'ם|Haitham,مصطفى|מוסטפא|Mustafa`),
+  musF: parse(`فاطمة|פאטמה|Fatma,مريم|מרים|Mariam,نور|נור|Nour,رنا|רנא|Rana,لينا|לינה|Lina,هبة|הבה|Hiba,سلمى|סלמא|Salma,ياسمين|יאסמין|Yasmin,آية|איה|Aya,دانا|דאנה|Dana,رهف|רהף|Rahaf,سماح|סמאח|Samah,أسيل|אסיל|Aseel,منار|מנאר|Manar,حنين|חנין|Haneen,رغد|רע'ד|Raghad,علا|עולא|Ola,شيرين|שירין|Shirin,إسراء|אסראא|Israa,دعاء|דועאא|Duaa`),
+  musS: parse(`مصاروة|מסארווה|Masarwa,جبارين|ג'בארין|Jabareen,محاميد|מחאמיד|Mahameed,أبو ريا|אבו ריא|Abu Ria,عثامنة|עת'אמנה|Athamna,خطيب|ח'טיב|Khatib,زعبي|זועבי|Zoabi,دراوشة|דראושה|Darawshe,طه|טאהא|Taha,إغبارية|אע'באריה|Ighbariya,عيسى|עיסא|Issa,صالح|סאלח|Saleh,حسين|חוסיין|Hussein,منصور|מנסור|Mansour,يونس|יונס|Younis,قاسم|קאסם|Kassem,بدارنة|בדארנה|Badarneh,غنايم|ע'נאים|Ghanayem,وتد|ותד|Watad,أبو شقرة|אבו שקרה|Abu Shakra`),
+  chrM: parse(`جورج|ג'ורג'|George,إلياس|אליאס|Elias,يوسف|יוסף|Yousef,حنا|חנא|Hanna,سامر|סאמר|Samer,فادي|פאדי|Fadi,رامي|ראמי|Rami,بشارة|בשארה|Bishara,نبيل|נביל|Nabil,شادي|שאדי|Shadi,ميشيل|מישל|Michel,كريستيان|כריסטיאן|Christian,إيليا|איליא|Elia,وديع|ודיע|Wadie,جريس|ג'ריס|Jeries,مروان|מרואן|Marwan`),
+  chrF: parse(`ماري|מרי|Mary,رنا|רנא|Rana,ريم|רים|Reem,نادين|נאדין|Nadine,لارا|לארה|Lara,كريستين|כריסטין|Christine,رولا|רולא|Rula,سهى|סוהא|Suha,ميرا|מירה|Mira,جيهان|ג'יהאן|Jihan,سيلين|סלין|Celine,هالة|האלה|Hala,ماريا|מריה|Maria,نتالي|נטלי|Natalie`),
+  chrS: parse(`خوري|ח'ורי|Khoury,حداد|חדאד|Haddad,شحادة|שחאדה|Shehadeh,بشارة|בשארה|Bishara,نصار|נסאר|Nassar,عودة|עודה|Odeh,جريس|ג'ריס|Jeries,سابا|סאבא|Saba,حبيب|חביב|Habib,مطر|מטר|Matar,زريق|זריק|Zreik,طنوس|טנוס|Tannous,عبود|עבוד|Abboud,سمعان|סמעאן|Samaan`),
+  drzM: parse(`وليد|וליד|Walid,أيمن|איימן|Ayman,نزار|ניזאר|Nizar,ربيع|רביע|Rabia,سليمان|סלימאן|Suleiman,كمال|כמאל|Kamal,فؤاد|פואד|Fuad,أكرم|אכרם|Akram,وسام|וסאם|Wisam,صالح|סאלח|Saleh,ماجد|מאג'ד|Majed,أنور|אנואר|Anwar,لؤي|לואי|Luay,نادر|נאדר|Nader,أمير|אמיר|Amir,عماد|עימאד|Imad,ريان|ריאן|Rayan,جاد|ג'אד|Jad`),
+  drzF: parse(`سهام|סיהאם|Siham,ريم|רים|Reem,نسرين|נסרין|Nisreen,لمى|למא|Lama,ريما|רימא|Rima,سناء|סנאא|Sana,أميرة|אמירה|Amira,منى|מונא|Mona,رنين|רנין|Ranin,نور|נור|Nour,ميساء|מייסא|Maysa,غدير|ע'דיר|Ghadir,تالا|תאלה|Tala`),
+  drzS: parse(`حلبي|חלבי|Halabi,قاسم|קאסם|Kassem,عامر|עאמר|Amer,زيدان|זידאן|Zidan,حسون|חסון|Hassoun,خير|ח'יר|Kheir,نبواني|נבואני|Nabwani,طريف|טריף|Tarif,فرج|פרג'|Faraj,سعد|סעד|Saad,عزام|עזאם|Azzam,أبو ركن|אבו רוכן|Abu Rukun,حمدان|חמדאן|Hamdan,منصور|מנסור|Mansour`),
+};
+
+const ORIGINS = {
+  A: ['Poland', 'Romania', 'Hungary', 'Former USSR', 'Germany', 'Argentina', 'USA', 'Lithuania'],
+  M: ['Morocco', 'Iraq', 'Yemen', 'Iran', 'Tunisia', 'Libya', 'Kurdistan', 'Turkey'],
+};
+const HERITAGE_LANG = { 'Former USSR': 'Russian', 'Argentina': 'Spanish', 'Morocco': 'French', 'Tunisia': 'French', 'Iraq': 'Arabic', 'Iran': 'Persian', 'Romania': 'Romanian', 'Hungary': 'Hungarian' };
+
+/* ---------- Places ---------- */
+const REGION = { 'Tel Aviv District': 'center', 'Central District': 'center', 'Haifa District': 'north', 'Northern District': 'north', 'Southern District': 'south', 'Jerusalem District': 'jerusalem' };
+const TEAMS_BY_REGION = { center: ['Maccabi Tel Aviv', 'Hapoel Tel Aviv'], north: ['Maccabi Haifa', 'Hapoel Haifa'], south: ["Hapoel Be'er Sheva"], jerusalem: ['Beitar Jerusalem', 'Hapoel Jerusalem'] };
+const TEAMS_INTL = ['Real Madrid', 'Barcelona', 'Manchester United', 'Liverpool', 'Arsenal', 'Manchester City'];
+const ARAB_TEAMS = ['Bnei Sakhnin', 'Maccabi Haifa'];
+
+// id: [he, en, ar, district, handle tag, local teams, neighborhoods as "he|en|onlyGroup"]
+const CITIES = {
+  tlv: ['תל אביב-יפו', 'Tel Aviv-Yafo', '', 'Tel Aviv District', 'tlv', null, `פלורנטין|Florentin,נווה צדק|Neve Tzedek,הצפון הישן|the Old North,רמת אביב|Ramat Aviv,יד אליהו|Yad Eliyahu,כרם התימנים|Kerem HaTeimanim`],
+  jaffa: ['יפו', 'Jaffa', 'يافا', 'Tel Aviv District', 'yafa', null, `עג'מי|Ajami,ג'בליה|Jabalia`],
+  rg: ['רמת גן', 'Ramat Gan', '', 'Tel Aviv District', 'rg', ['Hapoel Ramat Gan', 'Maccabi Tel Aviv']],
+  givatayim: ['גבעתיים', 'Givatayim', '', 'Tel Aviv District', 'gvt', null],
+  haifa: ['חיפה', 'Haifa', 'حيفا', 'Haifa District', 'hfa', null, `מרכז הכרמל|Carmel Center|jewish,אחוזה|Ahuza|jewish,נווה שאנן|Neve Sha'anan|jewish,בת גלים|Bat Galim|jewish,הדר|Hadar,ואדי ניסנאס|Wadi Nisnas|arab,המושבה הגרמנית|the German Colony`],
+  jlm: ['ירושלים', 'Jerusalem', '', 'Jerusalem District', 'jlm', null, `רחביה|Rehavia,קטמון|Katamon,בקעה|Baka,נחלאות|Nachlaot,קריית היובל|Kiryat HaYovel,בית הכרם|Beit HaKerem`],
+  bs: ['באר שבע', "Be'er Sheva", '', 'Southern District', 'b7', null, `רמות|Ramot,נווה זאב|Neve Ze'ev,העיר העתיקה|the Old City,שכונה ד'|Neighborhood D`],
+  rishon: ['ראשון לציון', 'Rishon LeZion', '', 'Central District', 'rishon', ['Hapoel Rishon LeZion', 'Maccabi Tel Aviv']],
+  holon: ['חולון', 'Holon', '', 'Tel Aviv District', 'holon', null],
+  batyam: ['בת ים', 'Bat Yam', '', 'Tel Aviv District', 'batyam', null],
+  pt: ['פתח תקווה', 'Petah Tikva', '', 'Central District', 'pt', ['Maccabi Petah Tikva', 'Hapoel Petah Tikva']],
+  ks: ['כפר סבא', 'Kfar Saba', '', 'Central District', 'ksaba', ['Hapoel Kfar Saba', 'Maccabi Tel Aviv']],
+  raanana: ['רעננה', "Ra'anana", '', 'Central District', 'raanana', null],
+  herzliya: ['הרצליה', 'Herzliya', '', 'Tel Aviv District', 'hrz', null],
+  netanya: ['נתניה', 'Netanya', '', 'Central District', 'netanya', ['Maccabi Netanya']],
+  modiin: ["מודיעין", "Modi'in", '', 'Central District', 'modiin', null],
+  rehovot: ['רחובות', 'Rehovot', '', 'Central District', 'rehovot', null],
+  hod: ['הוד השרון', 'Hod HaSharon', '', 'Central District', 'hod', null],
+  ashdod: ['אשדוד', 'Ashdod', '', 'Southern District', 'ashdod', ['F.C. Ashdod']],
+  ashkelon: ['אשקלון', 'Ashkelon', '', 'Southern District', 'ashkelon', null],
+  kg: ['קריית גת', 'Kiryat Gat', '', 'Southern District', 'kgat', null],
+  dimona: ['דימונה', 'Dimona', '', 'Southern District', 'dimona', null],
+  sderot: ['שדרות', 'Sderot', '', 'Southern District', 'sderot', null],
+  netivot: ['נתיבות', 'Netivot', '', 'Southern District', 'netivot', null],
+  eilat: ['אילת', 'Eilat', '', 'Southern District', 'eilat', null],
+  afula: ['עפולה', 'Afula', '', 'Northern District', 'afula', null],
+  ksh: ['קריית שמונה', 'Kiryat Shmona', '', 'Northern District', 'ks8', ['Hapoel Ironi Kiryat Shmona', 'Maccabi Haifa']],
+  karmiel: ['כרמיאל', 'Karmiel', '', 'Northern District', 'karmiel', null],
+  tivon: ['קריית טבעון', 'Kiryat Tivon', '', 'Northern District', 'tivon', null],
+  zichron: ['זכרון יעקב', "Zichron Ya'akov", '', 'Haifa District', 'zichron', null],
+  kata: ['קריית אתא', 'Kiryat Ata', '', 'Haifa District', 'kata', null],
+  roshhaayin: ['ראש העין', 'Rosh HaAyin', '', 'Central District', 'rha', null],
+  yavne: ['יבנה', 'Yavne', '', 'Central District', 'yavne', null],
+  oryehuda: ['אור יהודה', 'Or Yehuda', '', 'Tel Aviv District', 'oryehuda', null],
+  gsh: ['גבעת שמואל', 'Givat Shmuel', '', 'Central District', 'gsh', null],
+  bsh: ['בית שמש', 'Beit Shemesh', '', 'Jerusalem District', 'bsh', null],
+  nazareth: ['נצרת', 'Nazareth', 'الناصرة', 'Northern District', 'nazareth', ARAB_TEAMS],
+  umm: ['אום אל-פחם', 'Umm al-Fahm', 'أم الفحم', 'Haifa District', 'umalfahem', ARAB_TEAMS],
+  tayibe: ['טייבה', 'Tayibe', 'الطيبة', 'Central District', 'tayibe', ['Bnei Sakhnin', 'Maccabi Tel Aviv']],
+  sakhnin: ["סח'נין", 'Sakhnin', 'سخنين', 'Northern District', 'sakhnin', ['Bnei Sakhnin']],
+  tira: ['טירה', 'Tira', 'الطيرة', 'Central District', 'tira', ['Bnei Sakhnin', 'Maccabi Tel Aviv']],
+  kq: ['כפר קאסם', 'Kafr Qasim', 'كفر قاسم', 'Central District', 'kfarqasem', ['Bnei Sakhnin', 'Maccabi Tel Aviv']],
+  baqa: ['באקה אל-גרבייה', 'Baqa al-Gharbiyye', 'باقة الغربية', 'Haifa District', 'baqa', ARAB_TEAMS],
+  tamra: ['טמרה', 'Tamra', 'طمرة', 'Northern District', 'tamra', ARAB_TEAMS],
+  kafrkanna: ['כפר כנא', 'Kafr Kanna', 'كفر كنا', 'Northern District', 'kafrkanna', ARAB_TEAMS],
+  arraba: ['עראבה', 'Arraba', 'عرابة', 'Northern District', 'arraba', ARAB_TEAMS],
+  shefaamr: ['שפרעם', 'Shefa-Amr', 'شفاعمرو', 'Northern District', 'shefaamr', ARAB_TEAMS],
+  lod: ['לוד', 'Lod', 'اللد', 'Central District', 'lod', ['Maccabi Tel Aviv', 'Bnei Sakhnin']],
+  ramla: ['רמלה', 'Ramla', 'الرملة', 'Central District', 'ramla', ['Maccabi Tel Aviv', 'Bnei Sakhnin']],
+  kafryasif: ['כפר יאסיף', 'Kafr Yasif', 'كفر ياسيف', 'Northern District', 'kafryasif', ARAB_TEAMS],
+  miilya: ['מעיליא', "Mi'ilya", 'معليا', 'Northern District', 'miilya', ARAB_TEAMS],
+  fassuta: ['פסוטה', 'Fassuta', 'فسوطة', 'Northern District', 'fassuta', ARAB_TEAMS],
+  eilabun: ['עילבון', 'Eilabun', 'عيلبون', 'Northern District', 'eilabun', ARAB_TEAMS],
+  daliyat: ['דאלית אל-כרמל', 'Daliyat al-Karmel', 'دالية الكرمل', 'Haifa District', 'daliya', ['Maccabi Haifa', 'Hapoel Haifa']],
+  isfiya: ['עספיא', 'Isfiya', 'عسفيا', 'Haifa District', 'isfiya', ['Maccabi Haifa', 'Hapoel Haifa']],
+  yarka: ['ירכא', 'Yarka', 'يركا', 'Northern District', 'yarka', ['Maccabi Haifa', 'Hapoel Haifa']],
+  beitjann: ["בית ג'ן", 'Beit Jann', 'بيت جن', 'Northern District', 'beitjann', ['Maccabi Haifa']],
+  maghar: ['מגאר', 'Maghar', 'المغار', 'Northern District', 'maghar', ['Maccabi Haifa', 'Bnei Sakhnin']],
+  julis: ["ג'וליס", 'Julis', 'جولس', 'Northern District', 'julis', ['Maccabi Haifa']],
+  hurfeish: ['חורפיש', 'Hurfeish', 'حرفيش', 'Northern District', 'hurfeish', ['Maccabi Haifa']],
+  pekiin: ['פקיעין', "Peki'in", 'البقيعة', 'Northern District', 'pekiin', ['Maccabi Haifa']],
+  kisra: ['כסרא-סמיע', 'Kisra-Sumei', 'كسرى سميع', 'Northern District', 'kisra', ['Maccabi Haifa']],
+};
+const CITY_W = {
+  secular: { tlv: 10, rg: 4, givatayim: 3, haifa: 6, ks: 3, raanana: 2, herzliya: 3, rishon: 5, holon: 3, pt: 4, modiin: 3, rehovot: 3, bs: 4, netanya: 3, hod: 2, tivon: 1, zichron: 1, eilat: 1, karmiel: 1, jlm: 3 },
+  traditional: { rishon: 4, holon: 4, batyam: 3, ashdod: 4, ashkelon: 3, bs: 4, netanya: 3, kg: 2, dimona: 1, afula: 2, ksh: 1, roshhaayin: 2, jlm: 4, oryehuda: 1, yavne: 2, sderot: 1, kata: 2, pt: 3 },
+  religious: { jlm: 8, gsh: 3, bsh: 3, modiin: 3, pt: 3, raanana: 2, yavne: 2, netivot: 2, bs: 2, haifa: 1, ashdod: 1 },
+  muslim: { nazareth: 4, umm: 4, tayibe: 3, sakhnin: 3, tira: 2, kq: 2, baqa: 2, tamra: 2, kafrkanna: 2, jaffa: 2, lod: 2, haifa: 1, arraba: 2, shefaamr: 2 },
+  christian: { nazareth: 5, haifa: 5, shefaamr: 2, jaffa: 2, kafryasif: 2, miilya: 1, fassuta: 1, eilabun: 1, ramla: 1 },
+  druze: { daliyat: 4, isfiya: 3, yarka: 3, beitjann: 2, maghar: 3, julis: 2, hurfeish: 2, pekiin: 1, kisra: 1 },
+};
+
+/* ---------- Service ---------- */
+const UNITS = {
+  golani: ['גולני', 'Golani Brigade'], givati: ['גבעתי', 'Givati Brigade'], tzanhanim: ['צנחנים', 'Paratroopers Brigade'],
+  nahal: ['נח"ל', 'Nahal Brigade'], kfir: ['כפיר', 'Kfir Brigade'], shiryon: ['שריון', 'Armored Corps'],
+  totchanim: ['תותחנים', 'Artillery Corps'], handasa: ['הנדסה קרבית', 'Combat Engineering Corps'],
+  modiin: ['חיל המודיעין', 'Intelligence Corps'], mamram: ['ממר"ם', 'Mamram (C4I & Cyber Defense)'],
+  tikshuv: ['אגף התקשוב', 'C4I & Cyber Defense Directorate'], haavir: ['חיל האוויר', 'Israeli Air Force'],
+  hayam: ['חיל הים', 'Israeli Navy'], oref: ['פיקוד העורף', 'Home Front Command'],
+  atal: ['אט"ל', 'Technology & Logistics Directorate'], mp: ['משטרה צבאית', 'Military Police'],
+  magav: ['מג"ב', 'Border Police'], hinuch: ['חיל החינוך', 'Education & Youth Corps'],
+  dover: ['דובר צה"ל', "IDF Spokesperson's Unit"], caracal: ['קרקל', 'Caracal Battalion'],
+  hagana: ['הגנה אווירית', 'Air Defense (Iron Dome)'], aka: ['אכ"א', 'Personnel Directorate'],
+  kosher: ['בה"ד 8', 'Combat Fitness School (Bahad 8)'],
+};
+const COMBAT = ['golani', 'givati', 'tzanhanim', 'nahal', 'kfir', 'shiryon', 'totchanim', 'handasa'];
+const RANKS = { cpl: ['רב"ט', 'Corporal'], sgt: ['סמל', 'Sergeant'], ssgt: ['סמל ראשון', 'Staff Sergeant'], lt: ['סגן', 'Lieutenant'], cpt: ['סרן', 'Captain'] };
+
+const SHERUT_PLACES = ['at a hospital ward', 'at a special-education school', 'with Magen David Adom', 'at an immigrant absorption center', 'as a Bnei Akiva youth coordinator', 'at a youth village'];
+const CIVIL_PLACES = ['at a local elementary school', 'at a community health clinic', 'at a youth center', 'at the local council welfare office'];
+
+const S = (w, role, units, kind, extra = {}) => ({ w, role, units, kind, ...extra });
+const SERVICE = {
+  jewM: [
+    S(38, 'Combat soldier', COMBAT, 'combat'), S(10, 'Intelligence analyst', ['modiin'], 'intel'),
+    S(6, 'Software developer', ['mamram'], 'tech'), S(6, 'Network & systems technician', ['tikshuv'], 'tech'),
+    S(8, 'Aircraft technician', ['haavir'], 'support'), S(4, 'Sailor, missile boats', ['hayam'], 'support'),
+    S(5, 'Search & rescue soldier', ['oref'], 'combat'), S(8, 'Logistics NCO', ['atal'], 'support'),
+    S(4, 'Military police', ['mp'], 'support'), S(5, 'Combat soldier', ['magav'], 'combat'),
+    S(3, 'Photographer', ['dover'], 'support'), S(3, 'Education NCO', ['hinuch'], 'support'),
+    S(4, 'Combat officer', COMBAT, 'combat', { officer: true }),
+  ],
+  jewF: [
+    S(14, 'Intelligence analyst', ['modiin'], 'intel'), S(10, 'Welfare NCO (Mashakit Tash)', ['aka'], 'support'),
+    S(10, 'Teacher-soldier', ['hinuch'], 'support'), S(8, 'Operations NCO', ['haavir'], 'support'),
+    S(8, 'Systems technician', ['tikshuv'], 'tech'), S(4, 'Software developer', ['mamram'], 'tech'),
+    S(6, 'Combat soldier', ['caracal'], 'combat'), S(4, 'Combat soldier', ['magav'], 'combat'),
+    S(6, 'Search & rescue soldier', ['oref'], 'combat'), S(6, 'Combat fitness instructor', ['kosher'], 'support'),
+    S(6, 'Iron Dome operator', ['hagana'], 'support'), S(4, 'Tank instructor', ['shiryon'], 'support'),
+    S(3, 'Reporter', ['dover'], 'support'), S(7, 'Logistics NCO', ['atal'], 'support'),
+  ],
+  relM: [
+    S(45, 'Combat soldier (Hesder yeshiva track)', ['givati', 'golani', 'tzanhanim', 'kfir', 'shiryon', 'handasa'], 'combat', { hesder: true }),
+    S(30, 'Combat soldier (after a pre-military mechina)', COMBAT, 'combat', { mechina: true }),
+    S(10, 'Combat officer (after a pre-military mechina)', COMBAT, 'combat', { mechina: true, officer: true }),
+    S(8, 'Intelligence analyst', ['modiin'], 'intel', { mechina: true }),
+    S(7, 'Software developer', ['mamram'], 'tech'),
+  ],
+  relF: [
+    S(70, 'National Service (Sherut Leumi)', null, 'sherut'),
+    S(15, 'Teacher-soldier', ['hinuch'], 'support'), S(10, 'Intelligence analyst', ['modiin'], 'intel'),
+    S(5, 'Combat soldier', ['caracal'], 'combat'),
+  ],
+  drzM: [
+    S(45, 'Combat soldier', ['golani', 'givati', 'tzanhanim', 'handasa', 'shiryon'], 'combat'),
+    S(25, 'Combat soldier', ['magav'], 'combat'), S(10, 'Intelligence analyst', ['modiin'], 'intel'),
+    S(8, 'Military police', ['mp'], 'support'), S(7, 'Logistics NCO', ['atal'], 'support'),
+    S(5, 'Combat officer', ['golani', 'givati', 'tzanhanim'], 'combat', { officer: true }),
+  ],
+  drzF: [S(90, 'No military service (exempt)', null, 'none'), S(10, 'National Service (Sherut Leumi)', null, 'sherut')],
+  arab: [S(88, 'No military service (not required for Arab citizens)', null, 'none'), S(12, 'Civic national service (Sherut Ezrachi)', null, 'civil')],
+};
+function servicePool(comm, g) {
+  if (comm === 'muslim' || comm === 'christian') return SERVICE.arab;
+  if (comm === 'druze') return g === 'm' ? SERVICE.drzM : SERVICE.drzF;
+  if (comm === 'religious') return g === 'm' ? SERVICE.relM : SERVICE.relF;
+  if (comm === 'traditional' && g === 'f') return [...SERVICE.jewF, S(12, 'National Service (Sherut Leumi)', null, 'sherut')];
+  return g === 'm' ? SERVICE.jewM : SERVICE.jewF;
+}
+
+/* ---------- Education ---------- */
+// key: [he, en, region, onlyFor, favoredBy]
+const INST = {
+  tau: ['אוניברסיטת תל אביב', 'Tel Aviv University', 'center'],
+  huji: ['האוניברסיטה העברית', 'Hebrew University of Jerusalem', 'jerusalem'],
+  technion: ['הטכניון', 'Technion', 'north'],
+  bgu: ['אוניברסיטת בן-גוריון', 'Ben-Gurion University', 'south'],
+  haifa: ['אוניברסיטת חיפה', 'University of Haifa', 'north', null, ['muslim', 'christian', 'druze']],
+  biu: ['אוניברסיטת בר-אילן', 'Bar-Ilan University', 'center', null, ['religious', 'traditional']],
+  reichman: ['אוניברסיטת רייכמן', 'Reichman University', 'center'],
+  ariel: ['אוניברסיטת אריאל', 'Ariel University', 'center', null, ['religious']],
+  openu: ['האוניברסיטה הפתוחה', 'Open University of Israel', 'any'],
+  sapir: ['המכללה האקדמית ספיר', 'Sapir Academic College', 'south'],
+  telhai: ['המכללה האקדמית תל-חי', 'Tel-Hai College', 'north'],
+  ruppin: ['המרכז האקדמי רופין', 'Ruppin Academic Center', 'center'],
+  afeka: ['אפקה', 'Afeka College of Engineering', 'center'],
+  shenkar: ['שנקר', 'Shenkar College', 'center'],
+  bezalel: ['בצלאל', 'Bezalel Academy of Arts and Design', 'jerusalem'],
+  hit: ['מכון טכנולוגי חולון', 'Holon Institute of Technology', 'center'],
+  jct: ['המרכז האקדמי לב', 'Jerusalem College of Technology', 'jerusalem', ['religious', 'traditional'], ['religious']],
+  herzog: ['מכללת הרצוג', 'Herzog College', 'jerusalem', ['religious', 'traditional'], ['religious']],
+  qasemi: ['המכללה האקדמית אל-קאסמי', 'Al-Qasemi Academic College', 'north', ['muslim', 'christian', 'druze'], ['muslim']],
+  sakhnincol: ["המכללה האקדמית סח'נין", 'Sakhnin Academic College', 'north', ['muslim', 'christian', 'druze'], ['muslim', 'druze']],
+  oranim: ['המכללה האקדמית אורנים', 'Oranim College', 'north'],
+  wgalil: ['המכללה האקדמית גליל מערבי', 'Western Galilee College', 'north'],
+  yezreel: ['המכללה האקדמית עמק יזרעאל', 'Yezreel Valley College', 'north'],
+  ono: ['הקריה האקדמית אונו', 'Ono Academic College', 'center'],
+  colman: ['המכללה למינהל', 'College of Management (COLMAN)', 'center'],
+  azrieli: ['עזריאלי מכללה אקדמית להנדסה', 'Azrieli College of Engineering Jerusalem', 'jerusalem'],
+  levinsky: ['מכללת לוינסקי', 'Levinsky College of Education', 'center'],
+  kaye: ['מכללת קיי', 'Kaye Academic College of Education', 'south'],
+  dyellin: ['מכללת דוד ילין', 'David Yellin College', 'jerusalem'],
+  braude: ['מכללת בראודה', 'Braude College of Engineering', 'north'],
+};
+const at = s => s.split(' ');
+// key: { he, en, deg, len, at, jobs: [[en, he_m, he_f]] }
+const FIELDS = {
+  cs: { he: 'מדעי המחשב', en: 'Computer Science', deg: 'B.Sc.', len: 3, ms: 'M.Sc.',
+    at: at('tau huji technion bgu haifa biu reichman openu ariel afeka hit jct azrieli colman telhai braude'),
+    jobs: [['Backend developer at a startup', 'מפתח backend בסטארטאפ', 'מפתחת backend בסטארטאפ'], ['QA automation engineer', 'מהנדס QA אוטומציה', 'מהנדסת QA אוטומציה'], ['Data analyst at a tech company', 'אנליסט דאטה בחברת הייטק', 'אנליסטית דאטה בחברת הייטק'], ['Full-stack developer at a fintech company', 'מפתח פול-סטאק בחברת פינטק', 'מפתחת פול-סטאק בחברת פינטק']] },
+  ee: { he: 'הנדסת חשמל', en: 'Electrical Engineering', deg: 'B.Sc.', len: 4,
+    at: at('tau technion bgu biu ariel afeka hit jct azrieli braude'),
+    jobs: [['Hardware engineer at a chip company', 'מהנדס חומרה בחברת שבבים', 'מהנדסת חומרה בחברת שבבים'], ['Embedded software engineer', 'מהנדס תוכנה משובצת', 'מהנדסת תוכנה משובצת'], ['Electrical engineer at an infrastructure company', 'מהנדס חשמל בחברת תשתיות', 'מהנדסת חשמל בחברת תשתיות']] },
+  iem: { he: 'הנדסת תעשייה וניהול', en: 'Industrial Engineering & Management', deg: 'B.Sc.', len: 4,
+    at: at('tau technion bgu ariel afeka hit jct azrieli ruppin sapir braude'),
+    jobs: [['Product manager at a SaaS company', 'מנהל מוצר בחברת SaaS', 'מנהלת מוצר בחברת SaaS'], ['Operations analyst', 'אנליסט תפעול', 'אנליסטית תפעול'], ['Project manager at a construction company', 'מנהל פרויקטים בחברת בנייה', 'מנהלת פרויקטים בחברת בנייה']] },
+  psych: { he: 'פסיכולוגיה', en: 'Psychology', deg: 'B.A.', len: 3, ms: 'M.A.',
+    at: at('tau huji bgu haifa biu reichman openu ariel telhai yezreel ruppin colman'),
+    jobs: [['HR recruiter at a tech company', 'רכז גיוס בחברת הייטק', 'רכזת גיוס בחברת הייטק'], ['Youth counselor at a community center', 'מדריך נוער במתנ"ס', 'מדריכה במתנ"ס'], ['Organizational consultant', 'יועץ ארגוני', 'יועצת ארגונית']] },
+  econ: { he: 'כלכלה ומנהל עסקים', en: 'Economics & Management', deg: 'B.A.', len: 3, ms: 'M.A.',
+    at: at('tau huji bgu haifa biu reichman openu ariel colman ono ruppin sapir yezreel telhai'),
+    jobs: [['Credit analyst at a bank', 'אנליסט אשראי בבנק', 'אנליסטית אשראי בבנק'], ['Financial controller', 'חשב בחברה', 'חשבת בחברה'], ['Account manager at an insurance company', 'מנהל תיקי לקוחות בחברת ביטוח', 'מנהלת תיקי לקוחות בחברת ביטוח']] },
+  law: { he: 'משפטים', en: 'Law', deg: 'LL.B.', len: 4,
+    at: at('tau huji haifa biu reichman ono colman sapir ariel'),
+    jobs: [['Associate at a commercial law firm', 'עורך דין במשרד מסחרי', 'עורכת דין במשרד מסחרי'], ['Lawyer in private practice', 'עורך דין עצמאי', 'עורכת דין עצמאית'], ['Legal adviser at a municipality', 'יועץ משפטי בעירייה', 'יועצת משפטית בעירייה']] },
+  nursing: { he: 'סיעוד', en: 'Nursing', deg: 'B.A.', len: 4,
+    at: at('tau bgu haifa biu ariel ruppin yezreel jct'),
+    jobs: [['Nurse at a medical center', 'אח במרכז רפואי', 'אחות במרכז רפואי'], ['ER nurse', 'אח בחדר מיון', 'אחות בחדר מיון'], ['Community clinic nurse', 'אח בקופת חולים', 'אחות בקופת חולים']] },
+  edu: { he: 'חינוך והוראה', en: 'Education', deg: 'B.Ed.', len: 4, ms: 'M.Ed.',
+    at: at('levinsky kaye dyellin oranim herzog qasemi sakhnincol haifa biu huji tau telhai'),
+    jobs: [['Elementary school teacher', 'מורה בבית ספר יסודי', 'מורה בבית ספר יסודי'], ['High school English teacher', 'מורה לאנגלית בתיכון', 'מורה לאנגלית בתיכון'], ['Special education teacher', 'מורה לחינוך מיוחד', 'מורה לחינוך מיוחד'], ['High school math teacher', 'מורה למתמטיקה בתיכון', 'מורה למתמטיקה בתיכון']] },
+  comms: { he: 'תקשורת', en: 'Communications', deg: 'B.A.', len: 3, ms: 'M.A.',
+    at: at('tau huji haifa biu reichman colman sapir yezreel ariel'),
+    jobs: [['Social media manager at a digital agency', 'מנהל סושיאל במשרד פרסום', 'מנהלת סושיאל במשרד פרסום'], ['Copywriter', 'קופירייטר', 'קופירייטרית'], ['Content writer at a tech company', 'כותב תוכן בחברת הייטק', 'כותבת תוכן בחברת הייטק']] },
+  sw: { he: 'עבודה סוציאלית', en: 'Social Work', deg: 'B.S.W.', len: 3, ms: 'M.S.W.',
+    at: at('tau huji bgu haifa biu ariel sapir telhai yezreel ruppin'),
+    jobs: [['Social worker at a municipal welfare department', 'עובד סוציאלי במחלקת הרווחה', 'עובדת סוציאלית במחלקת הרווחה'], ['Social worker at a hospital', 'עובד סוציאלי בבית חולים', 'עובדת סוציאלית בבית חולים']] },
+  bio: { he: 'ביולוגיה', en: 'Biology', deg: 'B.Sc.', len: 3, ms: 'M.Sc.',
+    at: at('tau huji technion bgu haifa biu ariel openu'),
+    jobs: [['Lab technician at a research institute', 'טכנאי מעבדה במכון מחקר', 'טכנאית מעבדה במכון מחקר'], ['Clinical research associate at a pharma company', 'מתאם מחקרים קליניים בחברת פארמה', 'מתאמת מחקרים קליניים בחברת פארמה'], ['Quality assurance specialist at a food company', 'מבטח איכות בחברת מזון', 'מבטחת איכות בחברת מזון']] },
+  acct: { he: 'ראיית חשבון', en: 'Accounting', deg: 'B.A.', len: 3,
+    at: at('tau huji haifa biu reichman colman ono ruppin sapir yezreel ariel jct'),
+    jobs: [['Auditor at an accounting firm', 'מבקר במשרד רואי חשבון', 'מבקרת במשרד רואי חשבון'], ['CPA', 'רואה חשבון', 'רואת חשבון'], ['Payroll accountant', 'חשב שכר', 'חשבת שכר']] },
+  polsci: { he: 'מדע המדינה', en: 'Political Science', deg: 'B.A.', len: 3, ms: 'M.A.',
+    at: at('tau huji bgu haifa biu reichman openu ariel'),
+    jobs: [['Policy researcher at an NGO', 'חוקר מדיניות בעמותה', 'חוקרת מדיניות בעמותה'], ['Project coordinator at a municipality', 'רכז פרויקטים בעירייה', 'רכזת פרויקטים בעירייה']] },
+  pharm: { he: 'רוקחות', en: 'Pharmacy', deg: 'B.Pharm.', len: 4,
+    at: at('huji bgu ariel'),
+    jobs: [['Pharmacist at a pharmacy chain', 'רוקח ברשת פארם', 'רוקחת ברשת פארם'], ['Hospital pharmacist', 'רוקח בבית חולים', 'רוקחת בבית חולים']] },
+  arch: { he: 'אדריכלות', en: 'Architecture', deg: 'B.Arch.', len: 5,
+    at: at('technion tau bezalel ariel'),
+    jobs: [['Architect at a design studio', 'אדריכל בסטודיו', 'אדריכלית בסטודיו']] },
+  design: { he: 'תקשורת חזותית', en: 'Visual Communication', deg: 'B.Des.', len: 4,
+    at: at('shenkar bezalel hit wgalil'),
+    jobs: [['UX/UI designer', 'מעצב UX/UI', 'מעצבת UX/UI'], ['Freelance graphic designer', 'מעצב גרפי פרילנסר', 'מעצבת גרפית פרילנסרית']] },
+};
+const FIELD_W = {
+  secular: { cs: 14, ee: 4, iem: 8, psych: 8, econ: 9, law: 7, nursing: 4, edu: 5, comms: 6, sw: 4, bio: 5, acct: 5, polsci: 4, pharm: 1, arch: 3, design: 5 },
+  traditional: { cs: 8, ee: 3, iem: 6, psych: 6, econ: 10, law: 8, nursing: 6, edu: 8, comms: 5, sw: 6, bio: 3, acct: 9, polsci: 2, design: 3 },
+  religious: { cs: 10, ee: 4, iem: 7, psych: 6, econ: 7, law: 7, nursing: 6, edu: 12, sw: 6, bio: 4, acct: 7, polsci: 3, comms: 2 },
+  muslim: { cs: 8, ee: 5, iem: 4, psych: 5, econ: 5, law: 6, nursing: 10, edu: 14, sw: 6, bio: 5, acct: 7, pharm: 9, arch: 3, comms: 2 },
+  christian: { cs: 10, ee: 5, iem: 5, psych: 6, econ: 6, law: 8, nursing: 8, edu: 8, sw: 5, bio: 6, acct: 6, pharm: 6, arch: 4, comms: 3, design: 3 },
+  druze: { cs: 7, ee: 5, iem: 5, psych: 5, econ: 6, law: 6, nursing: 8, edu: 12, sw: 6, bio: 4, acct: 8, pharm: 4, polsci: 3 },
+};
+const P_DEGREE = { secular: .65, traditional: .45, religious: .6, muslim: .45, christian: .65, druze: .45 };
+const NO_DEGREE_EDU = [['Full matriculation (Bagrut)', 7], ['Practical engineer diploma (Handesaut)', 1.5], ['Partial matriculation', 1.5]];
+
+const JOBS_PLAIN = [
+  ['Electrician', 'חשמלאי', 'חשמלאית'], ['Real estate agent', 'מתווך נדל"ן', 'מתווכת נדל"ן'],
+  ['Personal trainer', 'מאמן כושר אישי', 'מאמנת כושר אישית'], ['Sales rep at a mobile carrier', 'נציג מכירות בחברת סלולר', 'נציגת מכירות בחברת סלולר'],
+  ['Chef at a restaurant', 'שף במסעדה', 'שפית במסעדה'], ['Owner of a small café', 'בעלים של בית קפה קטן', 'בעלת בית קפה קטן'],
+  ['Insurance agent', 'סוכן ביטוח', 'סוכנת ביטוח'], ['Logistics coordinator at an import company', 'רכז לוגיסטיקה בחברת יבוא', 'רכזת לוגיסטיקה בחברת יבוא'],
+  ['Car mechanic', 'מכונאי רכב', 'מכונאית רכב'], ['Solar panel technician', 'טכנאי מערכות סולאריות', 'טכנאית מערכות סולאריות'],
+  ['Tour guide', 'מדריך טיולים', 'מדריכת טיולים'], ['Hair stylist', 'מעצב שיער', 'מעצבת שיער'],
+  ['Customer service rep', 'נציג שירות לקוחות', 'נציגת שירות לקוחות'], ['Bus driver', 'נהג אוטובוס', 'נהגת אוטובוס'],
+  ['Office manager', 'מנהל משרד', 'מנהלת משרד'], ['Electronics technician', 'טכנאי אלקטרוניקה', 'טכנאית אלקטרוניקה'],
+];
+const JOBS_YOUNG = [
+  ['Waiter at a restaurant', 'מלצר במסעדה', 'מלצרית במסעדה'], ['Security guard at a mall', 'מאבטח בקניון', 'מאבטחת בקניון'],
+  ['Warehouse worker', 'עובד מחסן', 'עובדת מחסן'], ['Shift manager at a café', 'אחראי משמרת בבית קפה', 'אחראית משמרת בבית קפה'],
+  ['Sales associate at a clothing store', 'מוכר בחנות בגדים', 'מוכרת בחנות בגדים'],
+];
+const PART_TIME = ['waiter', 'bartender', 'barista', 'private tutor', 'cashier at a supermarket', 'sales associate'];
+
+/* ---------- Interests ---------- */
+const INTERESTS = {
+  common: parse(`Hiking|טיולים,Running|ריצה,Surfing|גלישה,CrossFit|קרוספיט,Cooking|בישול,Photography|צילום,Board games|משחקי קופסה,Gaming|גיימינג,Guitar|גיטרה,Techno and festivals|טכנו ופסטיבלים,Israeli rock|רוק ישראלי,Mizrahi music|מוזיקה מזרחית,Basketball|כדורסל,Cycling|רכיבת אופניים,Yoga|יוגה,Diving in Eilat|צלילה באילת,Reading|קריאה,Stand-up comedy|סטנדאפ,Specialty coffee|קפה,Dogs|כלבים,Cats|חתולים,Jeep trips|טיולי ג'יפים,Camping|קמפינג,Bouldering|בולדרינג,Football|כדורגל,Volunteering|התנדבות,Gardening|גינון,Podcasts|פודקאסטים,Krav Maga|קרב מגע,Baking|אפייה,Matkot on the beach|מטקות בחוף,Startups and tech|הייטק וסטארטאפים,TV series|סדרות,Travel abroad|טיולים בחו"ל,Fitness|כושר,Fishing|דיג`),
+  religious: parse(`Daf Yomi study|לימוד דף יומי,Bnei Akiva|בני עקיבא,Jewish music|מוזיקה יהודית,Volunteering|התנדבות,Hiking the Land of Israel|טיולים בארץ`),
+  arab: parse(`Oud|עוד,Dabke|דבקה,Arabic music|מוזיקה ערבית,Football|כדורגל,Fashion|אופנה,Family barbecues|מנגלים עם המשפחה`),
+  druze: parse(`Dabke|דבקה,Oud|עוד,Hiking on Mount Carmel|טיולים בכרמל,Football|כדורגל,Family gatherings|מפגשים משפחתיים`),
+};
+const KEEP_CASE = /^(Israeli|Mizrahi|Daf|Bnei|Jewish|Arabic|Krav|CrossFit|Oud|Dabke|Hiking the Land|Hiking on Mount|Diving in Eilat|TV)/;
+const lc = s => KEEP_CASE.test(s) ? s : s[0].toLowerCase() + s.slice(1);
+
+/* ---------- Travel ---------- */
+const BIG_TRIPS = ['South America (Peru, Bolivia, Patagonia)', 'India (Himachal Pradesh, Goa)', 'Thailand and Laos', 'Nepal (Annapurna Circuit)', 'Vietnam and Cambodia', 'Colombia and Mexico', 'Australia and New Zealand (working holiday)', 'Sri Lanka', 'Japan'];
+const SHORT_TRIPS = ['Greece', 'Cyprus', 'Georgia (Tbilisi, Batumi)', 'Italy', 'Thailand', 'Budapest and Prague', 'Turkey (Istanbul, Antalya)', 'Jordan (Petra, Aqaba)', 'Dubai', 'Sinai, Egypt', 'Germany', 'Portugal'];
+
+/* ---------- Activity rhythm ---------- */
+const RHYTHM = {
+  secular: ['Online in the evenings and on Friday mornings; active on Saturdays too.', 'Posts around Israeli moments: Independence Day barbecue, Purim costumes, Eurovision night.'],
+  traditional: ['Active most days; quieter on Friday evening (family dinner).', 'Shares holiday greetings: Rosh Hashanah, the Passover seder, Hanukkah.'],
+  religious: ['Offline from before sunset on Friday until after dark on Saturday, and on Jewish holidays. Never post, like, or appear online during Shabbat.', 'Posts before holidays: sukkah photos, Hanukkah candles, Shavuot.'],
+  muslim: ['During Ramadan, activity shifts late: iftar photos and late-night posts.', 'Shares Eid al-Fitr and Eid al-Adha greetings; Friday midday is quieter.'],
+  christian: ['Sunday mornings are quieter (church).', 'Christmas and Easter greetings; many local churches follow the Eastern calendar, so check which one.'],
+  druze: ['Eid al-Adha is the main holiday of the year.', "The Nabi Shu'ayb pilgrimage in late April is a common post topic."],
+};
+
+/* ---------- Generators ---------- */
+const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+
+function genName(r, comm, g) {
+  const group = COMM[comm].group;
+  if (group === 'jewish') {
+    const base = g === 'm' ? NAMES.jewM : NAMES.jewF;
+    const rel = g === 'm' ? NAMES.jewMRel : NAMES.jewFRel;
+    const first = comm === 'religious' && chance(r, .6) ? pick(r, rel) : pick(r, base);
+    const sg = weighted(r, comm === 'traditional' ? { M: 55, A: 20, H: 25 } : comm === 'secular' ? { A: 40, M: 30, H: 30 } : { A: 35, M: 35, H: 30 });
+    const pool = sg === 'A' ? NAMES.surA : sg === 'M' ? NAMES.surM : NAMES.surH;
+    let last = pick(r, pool);
+    while (last[1] === first[1]) last = pick(r, pool);
+    const other = side => side === 'A' ? 'M' : 'A';
+    const fSide = sg === 'H' ? (chance(r, .5) ? 'A' : 'M') : sg;
+    const mSide = chance(r, .7) ? fSide : other(fSide);
+    const father = pick(r, ORIGINS[fSide]);
+    const mother = mSide === fSide && chance(r, .6) ? father : pick(r, ORIGINS[mSide]);
+    const origin = { father, mother, text: father === mother ? `${father} (both sides)` : `${father} (father's side) · ${mother} (mother's side)` };
+    return { native: `${first[0]} ${last[0]}`, he: `${first[0]} ${last[0]}`, en: `${first[1]} ${last[1]}`, firstEn: first[1], lastEn: last[1], firstHe: first[0], origin };
+  }
+  const key = comm === 'muslim' ? 'mus' : comm === 'christian' ? 'chr' : 'drz';
+  const first = pick(r, NAMES[key + (g === 'm' ? 'M' : 'F')]);
+  const last = pick(r, NAMES[key + 'S']);
+  return { native: `${first[0]} ${last[0]}`, he: `${first[1]} ${last[1]}`, en: `${first[2]} ${last[2]}`, firstEn: first[2], lastEn: last[2], firstHe: first[1], origin: null };
+}
+
+function genPlace(r, comm) {
+  const id = weighted(r, CITY_W[comm]);
+  const [he, en, ar, dist, tag, teams, hoodStr] = CITIES[id];
+  const region = REGION[dist];
+  const group = COMM[comm].group === 'jewish' ? 'jewish' : 'arab';
+  let hood = null;
+  if (hoodStr && chance(r, .8)) {
+    const hoods = parse(hoodStr).filter(h => !h[2] || h[2] === group);
+    if (hoods.length) { const h = pick(r, hoods); hood = { he: h[0], en: h[1] }; }
+  }
+  const local = teams || TEAMS_BY_REGION[region];
+  const intlP = group === 'jewish' ? .3 : .45;
+  const team = chance(r, intlP) ? pick(r, TEAMS_INTL) : pick(r, local);
+  return { id, he, en, ar, dist, region, tag, hood, team };
+}
+
+function genService(r, comm, g, birthYear, nowYear, age) {
+  const s = weighted(r, servicePool(comm, g).map(p => [p, p.w]));
+  if (s.kind === 'none') return { type: 'none', title: s.role, detail: '', current: false, kind: 'none' };
+  const start = birthYear + 18 + (s.mechina ? 1 : 0);
+  if (s.kind === 'sherut' || s.kind === 'civil') {
+    const years = int(r, 1, 2);
+    const end = start + years;
+    const current = end > nowYear;
+    const place = pick(r, s.kind === 'sherut' ? SHERUT_PLACES : CIVIL_PLACES);
+    return { type: s.kind, title: `${s.role}, ${place}`, detail: current ? `Serving since ${start}` : `${start}–${end}`, start, end, current, kind: s.kind };
+  }
+  const unitKey = pick(r, s.units);
+  const unit = UNITS[unitKey];
+  let years = g === 'm' ? 3 : 2;
+  if (s.hesder) years = 5;
+  if (s.officer) years += 2;
+  const end = start + years;
+  const current = end > nowYear;
+  let rank;
+  if (s.officer) rank = RANKS[weighted(r, { lt: 7, cpt: 3 })];
+  else rank = RANKS[weighted(r, g === 'm' ? { ssgt: 6, sgt: 3, cpl: 1 } : { sgt: 5.5, ssgt: 2.5, cpl: 2 })];
+  let reserve = null;
+  if (!current && (g === 'm' || s.kind === 'combat') && age <= 42) {
+    if (chance(r, s.kind === 'combat' ? .6 : .25)) reserve = end < 2024 ? 'Active reservist; long call-ups since October 2023' : 'Active reservist';
+  }
+  return {
+    type: 'idf', title: `${s.role}, ${unit[1]}`, unitHe: unit[0], unitEn: unit[1],
+    detail: current ? `Serving since ${start}` : `${start}–${end} · discharged as ${rank[1]} (${rank[0]})`,
+    start, end, current, kind: s.kind, reserve, short: unit[1].replace(/ (Brigade|Corps|Battalion)$/, ''),
+  };
+}
+
+const inInst = he => he.startsWith('ה') ? 'ב' + he.slice(1) : 'ב' + he;
+
+function pickInstitution(r, field, region, comm) {
+  const entries = field.at.map(k => {
+    const [, , iregion, only, favor] = INST[k];
+    if (only && !only.includes(comm)) return [k, 0];
+    let w = 1;
+    if (iregion === region) w *= 3;
+    if (favor && favor.includes(comm)) w *= 3;
+    if (k === 'openu') w *= .5;
+    return [k, w];
+  }).filter(([, w]) => w > 0);
+  return weighted(r, entries);
+}
+
+function genEducation(r, comm, birthYear, nowYear, service, region) {
+  const none = () => ({ status: 'none', title: 'No degree', detail: weighted(r, NO_DEGREE_EDU) });
+  if (service.current) return { status: 'none', title: 'No degree yet', detail: 'Full matriculation (Bagrut)' };
+  if (!chance(r, P_DEGREE[comm])) return none();
+  const free = service.type === 'none' ? birthYear + 18 : service.end;
+  const start = free + int(r, 0, 2);
+  if (start > nowYear) return none();
+  const fieldKey = weighted(r, FIELD_W[comm]);
+  const field = FIELDS[fieldKey];
+  const instKey = pickInstitution(r, field, region, comm);
+  const [ihe, ien] = INST[instKey];
+  const end = start + field.len;
+  const inst = { he: ihe, en: ien };
+  if (end > nowYear) {
+    const year = Math.min(nowYear - start + 1, field.len);
+    return { status: 'student', field, fieldKey, inst, start, title: `${field.deg} ${field.en}, year ${year} of ${field.len}`, detail: `${ien} · ${ihe}` };
+  }
+  let masters = null;
+  if (field.ms && nowYear - end >= 2 && chance(r, .22)) {
+    const mInst = chance(r, .6) ? inst : (k => ({ he: INST[k][0], en: INST[k][1] }))(pickInstitution(r, field, region, comm));
+    const mEnd = Math.min(nowYear, end + int(r, 2, 4));
+    masters = `${field.ms} ${field.en}, ${mInst.en} (${mEnd})`;
+  }
+  return { status: 'grad', field, fieldKey, inst, start, end, masters, title: `${field.deg} ${field.en}`, detail: `${ien} · ${ihe} · ${start}–${end}` };
+}
+
+function genJob(r, g, age, edu, service) {
+  const gi = g === 'm' ? 1 : 2;
+  if (service.current) {
+    if (service.type === 'idf') return { en: 'Soldier in regular service', he: g === 'm' ? 'חייל בשירות סדיר' : 'חיילת בשירות סדיר' };
+    if (service.type === 'sherut') return { en: 'National Service volunteer', he: g === 'm' ? 'בן שירות לאומי' : 'בת שירות לאומי' };
+    return { en: 'Civic service volunteer', he: g === 'm' ? 'מתנדב בשירות אזרחי' : 'מתנדבת בשירות אזרחי' };
+  }
+  if (edu.status === 'student') {
+    return {
+      en: `${edu.field.en} student, part-time ${pick(r, PART_TIME)}`,
+      bioEn: `${edu.field.en} student @ ${edu.inst.en}`,
+      he: `${g === 'm' ? 'סטודנט' : 'סטודנטית'} ל${edu.field.he} ${inInst(edu.inst.he)}`,
+    };
+  }
+  let j;
+  if (edu.status === 'grad' && chance(r, .9)) j = pick(r, edu.field.jobs);
+  else j = pick(r, age <= 24 && chance(r, .6) ? JOBS_YOUNG : JOBS_PLAIN);
+  return { en: j[0], he: j[gi] };
+}
+
+function genMarital(r, comm, g, age) {
+  const early = ['religious', 'muslim', 'druze'].includes(comm) ? 1 : ['traditional', 'christian'].includes(comm) ? .5 : 0;
+  let pm = age < 23 ? .05 : age < 26 ? .15 : age < 30 ? .4 : age < 35 ? .62 : .72;
+  pm = Math.min(.9, pm + early * .2 + (age >= 22 && age < 28 ? early * .25 : 0));
+  if (chance(r, pm)) {
+    if (age > 32 && chance(r, .08)) return 'Divorced, 1 kid';
+    const maxKids = comm === 'religious' ? 5 : early ? 4 : 3;
+    const kids = age < 25 ? int(r, 0, 1) : Math.min(maxKids, int(r, 0, Math.max(1, Math.floor((age - 22) / 3))));
+    return `Married${kids ? `, ${kids} kid${kids > 1 ? 's' : ''}` : ''}`;
+  }
+  return chance(r, .4) ? 'In a relationship' : 'Single';
+}
+
+function genLanguages(r, group, origin, service) {
+  if (group === 'jewish') {
+    const L = ['Hebrew (native)'];
+    const fromUS = origin && (origin.father === 'USA' || origin.mother === 'USA');
+    L.push(fromUS ? 'English (native, from home)' : weighted(r, [['English (fluent)', 5], ['English (good)', 4], ['English (basic)', 1]]));
+    const heritage = [...new Set([origin.father, origin.mother].map(o => HERITAGE_LANG[o]).filter(Boolean))];
+    for (const h of heritage) if (chance(r, h === 'Russian' ? .7 : .3)) L.push(`${h} (${h === 'Russian' && chance(r, .5) ? 'fluent' : 'basic, from home'})`);
+    if (service.kind === 'intel' && chance(r, .35)) L.push('Arabic (studied in school and the army)');
+    else if (chance(r, .08)) L.push('Arabic (basic, from school)');
+    return L;
+  }
+  return ['Arabic (native)', weighted(r, [['Hebrew (fluent)', 7], ['Hebrew (good)', 3]]), weighted(r, [['English (good)', 5], ['English (basic)', 3], ['English (fluent)', 2]])];
+}
+
+function genTravel(r, group, service, nowYear) {
+  const out = [];
+  const done = service.end && !service.current && (service.type === 'idf' || service.type === 'sherut');
+  if (group === 'jewish' && done && service.end <= nowYear && chance(r, .55)) {
+    out.push(`After the army: ${pick(r, BIG_TRIPS)}, ${int(r, 3, 8)} months (${Math.min(nowYear, service.end + int(r, 0, 1))})`);
+  }
+  if (chance(r, group === 'jewish' ? .5 : .6)) out.push(`Recent trip: ${pick(r, SHORT_TRIPS)} (${int(r, nowYear - 3, nowYear)})`);
+  return out;
+}
+
+function slug(s) { return s.toLowerCase().replace(/['’]/g, '').replace(/[^a-z0-9]/g, ''); }
+function genHandles(r, p) {
+  const f = slug(p.name.firstEn), l = slug(p.name.lastEn), yy = String(p.birthYear).slice(2), t = p.place.tag;
+  const opts = [`${f}.${l}`, `${f}${l}${yy}`, `${f}_${l}`, `${f[0]}${l}${yy}`, `${l}.${f}`, `${f}.${t}`, `${f}${l}${int(r, 2, 99)}`, `${f}.${l}.${yy}`, `its.${f}`, `${f}_${t}${yy}`, `${f}${l[0]}${int(r, 1, 9)}`];
+  return sample(r, [...new Set(opts)], 5);
+}
+
+function genBios(r, p) {
+  const [a, b, c] = p.interests;
+  const jobEn = p.job.bioEn || p.job.en;
+  const city = p.place.en, cityHe = p.place.he;
+  const enT = [
+    () => `${jobEn} | ${city} | ${lc(a.en)} & ${lc(b.en)}`,
+    () => `📍${city} · ${jobEn} · ${lc(a.en)}, ${lc(b.en)}, ${lc(c.en)}`,
+    () => `${jobEn}. ${a.en} and ${lc(b.en)} on weekends. ${city}`,
+  ];
+  if (p.service.type === 'idf' && !p.service.current && p.service.kind === 'combat') enT.push(() => `${jobEn} | ${p.service.short} alum | ${city}`);
+  const loves = p.gender === 'm' ? 'אוהב' : 'אוהבת';
+  const heT = [
+    () => `${p.job.he} | ${cityHe} | ${a.he} ו${b.he}`,
+    () => `📍${cityHe} · ${p.job.he} · ${a.he}, ${b.he}, ${c.he}`,
+    () => `${p.job.he}. ${loves} ${a.he} ו${b.he}.`,
+  ];
+  let en = pick(r, enT)(), he = pick(r, heT)();
+  if (p.group === 'jewish' && chance(r, .25)) { en += ' 🇮🇱'; he += ' 🇮🇱'; }
+  return { en, he };
+}
+
+function genPhoto(r, p) {
+  const who = p.group === 'jewish' ? 'Israeli' : p.comm === 'druze' ? 'Druze Israeli' : 'Arab Israeli';
+  const person = p.gender === 'm' ? 'man' : 'woman';
+  const married = p.marital.startsWith('Married');
+  const parts = [];
+  let hijab = false;
+  if (p.comm === 'muslim' && p.gender === 'f' && chance(r, .55)) { parts.push('a hijab'); hijab = true; }
+  if (!hijab) {
+    const hairM = ['short dark brown hair', 'curly dark hair', 'short black hair', 'buzzed hair', 'light brown hair', ...(p.age > 35 ? ['receding dark hair', 'graying temples'] : [])];
+    const hairF = ['long dark wavy hair', 'shoulder-length brown hair', 'curly dark hair in a ponytail', 'straight black hair', 'long light-brown hair', 'a short dark bob'];
+    parts.push(pick(r, p.gender === 'm' ? hairM : hairF));
+  }
+  if (p.gender === 'm') parts.push(pick(r, p.comm === 'religious' ? ['a short beard', 'a full beard', 'stubble'] : ['stubble', 'a short beard', 'clean-shaven', 'clean-shaven']));
+  if (p.comm === 'religious' && p.gender === 'm') parts.push('a knitted kippah');
+  if (p.comm === 'religious' && p.gender === 'f' && married) parts.push(pick(r, ['a colorful head scarf (tichel)', 'a wide-brimmed hat']));
+  const settings = {
+    center: ['on the Tel Aviv beach promenade', 'at an outdoor café table', 'in a city park'],
+    north: ['on a hiking trail in the Galilee', 'at a lookout over the Carmel ridge', 'at a family barbecue in a garden'],
+    jerusalem: ['on a Jerusalem stone street', 'at a busy market stall', 'in a small café'],
+    south: ['in the Negev desert at sunset', 'at an outdoor café', 'on a beach boardwalk'],
+  };
+  const setting = pick(r, [...settings[p.place.region], 'at home on the couch', 'at a restaurant with friends out of frame']);
+  const expr = pick(r, ['relaxed smile', 'candid laugh', 'neutral expression', 'squinting slightly in the sun']);
+  const [first, ...rest] = parts;
+  const features = rest.length ? `${first}, ${rest.join(', ')}` : first;
+  return `Casual smartphone photo of a ${p.age}-year-old ${who} ${person} with ${features}, ${expr}, ${setting}. Natural light, slightly off-center framing, no filters, not a studio portrait.`;
+}
+
+function genPlatforms(p) {
+  const out = [];
+  if (p.age < 32) out.push('Instagram');
+  if (p.age < 27) out.push('TikTok');
+  if (p.age >= 28 || p.group !== 'jewish') out.push('Facebook');
+  if (p.education.status !== 'none') out.push('LinkedIn');
+  out.push('Telegram (news channels)');
+  return out;
+}
+
+function generate(seed, opts, salts, now = new Date()) {
+  const core = rngFor(seed, 'core', opts.community, opts.gender, opts.ageMin, opts.ageMax);
+  const comm = opts.community === 'any' ? weighted(core, Object.entries(COMM).map(([k, v]) => [k, v.w])) : opts.community;
+  const group = COMM[comm].group;
+  const gender = opts.gender === 'any' ? (chance(core, .5) ? 'm' : 'f') : opts.gender;
+  const age = int(core, opts.ageMin, opts.ageMax);
+  const dob = new Date(now.getFullYear() - age, now.getMonth(), now.getDate());
+  dob.setDate(dob.getDate() - int(core, 1, 364));
+  const birthYear = dob.getFullYear();
+  const nowYear = now.getFullYear();
+
+  const p = { seed, comm, commLabel: COMM[comm].label, group, gender, genderLabel: gender === 'm' ? 'Male' : 'Female', age, birthYear,
+    dob: `${dob.getDate()} ${MONTHS[dob.getMonth()]} ${birthYear}`, dobIso: `${birthYear}-${String(dob.getMonth() + 1).padStart(2, '0')}-${String(dob.getDate()).padStart(2, '0')}` };
+
+  p.name = genName(rngFor(seed, 'name', salts.name, comm, gender), comm, gender);
+  p.place = genPlace(rngFor(seed, 'place', salts.place, comm), comm);
+
+  const life = rngFor(seed, 'life', salts.life, comm, gender, age);
+  p.service = genService(life, comm, gender, birthYear, nowYear, age);
+  p.education = genEducation(life, comm, birthYear, nowYear, p.service, p.place.region);
+  p.job = genJob(life, gender, age, p.education, p.service);
+  p.marital = genMarital(life, comm, gender, age);
+  p.travel = genTravel(life, group, p.service, nowYear);
+  p.languages = genLanguages(rngFor(seed, 'lang', salts.name, salts.life), group, p.name.origin, p.service);
+
+  const ir = rngFor(seed, 'interests', salts.interests, comm);
+  const extra = comm === 'religious' ? INTERESTS.religious : group === 'arab' ? INTERESTS.arab : group === 'druze' ? INTERESTS.druze : [];
+  const picked = [];
+  const pool = [...INTERESTS.common, ...extra, ...extra];
+  const n = int(ir, 4, 5);
+  while (picked.length < n) {
+    const it = pick(ir, pool);
+    if (!picked.some(x => x[0] === it[0])) picked.push(it);
+  }
+  p.interests = picked.map(([en, he]) => ({ en, he }));
+
+  const or = rngFor(seed, 'online', salts.online, salts.name, salts.place, salts.life, salts.interests);
+  p.handles = genHandles(or, p);
+  p.bio = genBios(or, p);
+  p.photo = genPhoto(or, p);
+  p.platforms = genPlatforms(p);
+  p.rhythm = RHYTHM[comm];
+  p.locale = group === 'jewish'
+    ? 'Timezone Asia/Jerusalem (UTC+2, UTC+3 in summer). Browser language he-IL; keyboards Hebrew and English.'
+    : 'Timezone Asia/Jerusalem (UTC+2, UTC+3 in summer). Browser language Arabic or he-IL; keyboards Arabic, Hebrew and English.';
+  return p;
+}
+
+/* ---------- Persona code ---------- */
+const SALT_KEYS = ['name', 'place', 'life', 'interests', 'online'];
+function encodeCode(seed, salts) {
+  const s = SALT_KEYS.map(k => salts[k].toString(36)).join('');
+  return /^0+$/.test(s) ? seed : `${seed}-${s}`;
+}
+function decodeCode(code) {
+  const salts = Object.fromEntries(SALT_KEYS.map(k => [k, 0]));
+  const m = code.match(/^(.+)-([0-9a-z]{5})$/i);
+  if (!m) return { seed: code, salts };
+  SALT_KEYS.forEach((k, i) => { salts[k] = parseInt(m[2][i], 36); });
+  return { seed: m[1], salts };
+}
+function randomSeed() {
+  const abc = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  const buf = new Uint32Array(6);
+  (globalThis.crypto || require('crypto').webcrypto).getRandomValues(buf);
+  return Array.from(buf, n => abc[n % abc.length]).join('');
+}
+
+/* ---------- Text export ---------- */
+function legendText(p, code) {
+  const L = [];
+  L.push(`LEGEND FILE ${code}`, '');
+  L.push(`Name: ${p.name.native}${p.name.he !== p.name.native ? ` / ${p.name.he}` : ''} / ${p.name.en}`);
+  L.push(`Gender: ${p.genderLabel}`, `Age: ${p.age} (born ${p.dob})`, `Community: ${p.commLabel}`);
+  if (p.name.origin) L.push(`Family origin: ${p.name.origin.text}`);
+  L.push(`Languages: ${p.languages.join(', ')}`, `Status: ${p.marital}`, '');
+  L.push(`City: ${p.place.en} (${p.place.he}${p.place.ar ? `, ${p.place.ar}` : ''}), ${p.place.dist}`);
+  if (p.place.hood) L.push(`Neighborhood: ${p.place.hood.en} (${p.place.hood.he})`);
+  L.push(`Team: ${p.place.team}`, '');
+  L.push(`Service: ${p.service.title}${p.service.unitHe ? ` (${p.service.unitHe})` : ''}${p.service.detail ? `, ${p.service.detail}` : ''}`);
+  if (p.service.reserve) L.push(`Reserve duty: ${p.service.reserve}`);
+  L.push(`Education: ${p.education.title}${p.education.detail ? `, ${p.education.detail}` : ''}`);
+  if (p.education.masters) L.push(`Graduate: ${p.education.masters}`);
+  L.push(`Occupation: ${p.job.en} / ${p.job.he}`);
+  p.travel.forEach(t => L.push(`Travel: ${t}`));
+  L.push('', `Interests: ${p.interests.map(i => `${i.en} (${i.he})`).join(', ')}`, '');
+  L.push(`Handles: ${p.handles.join(', ')}`, `Bio (EN): ${p.bio.en}`, `Bio (HE): ${p.bio.he}`, `Photo prompt: ${p.photo}`);
+  L.push(`Fits on: ${p.platforms.join(', ')}`, '');
+  L.push('Activity rhythm:', ...p.rhythm.map(x => `- ${x}`), `- ${p.locale}`);
+  return L.join('\n');
+}
+
+/* ---------- UI ---------- */
+if (typeof document !== 'undefined') {
+  const $ = s => document.querySelector(s);
+  const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const ICON = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13.5 8a5.5 5.5 0 1 1-1.7-3.97"/><path d="M13.5 2.5v3.2h-3.2"/></svg>';
+  const reroll = (key, label) => `<button type="button" class="btn link" data-reroll="${key}">${ICON}${label}</button>`;
+  const copyBtn = (text, label) => `<button type="button" class="btn small" data-copy="${esc(text)}" data-label="${esc(label)}">Copy</button>`;
+  const he = s => `<bdi class="he" dir="rtl" lang="he">${esc(s)}</bdi>`;
+  const ar = s => s ? `<bdi class="ar" dir="rtl" lang="ar">${esc(s)}</bdi>` : '';
+
+  const state = { seed: randomSeed(), salts: Object.fromEntries(SALT_KEYS.map(k => [k, 0])), p: null };
+
+  function readOpts() {
+    let a = parseInt($('#ageMin').value, 10), b = parseInt($('#ageMax').value, 10);
+    a = Math.min(65, Math.max(20, isNaN(a) ? 22 : a));
+    b = Math.min(65, Math.max(20, isNaN(b) ? 45 : b));
+    if (a > b) [a, b] = [b, a];
+    return { community: $('#community').value, gender: document.querySelector('input[name="gender"]:checked').value, ageMin: a, ageMax: b };
+  }
+
+  function view(p, code) {
+    const s = p.service, e = p.education, pl = p.place;
+    return `
+    <div class="strip"><span>Legend file</span><span class="code">${esc(code)}</span></div>
+    <div class="ident">
+      <div class="who">
+        <p class="name-native" dir="auto" lang="${p.group === 'jewish' ? 'he' : 'ar'}">${esc(p.name.native)}</p>
+        ${p.name.he !== p.name.native ? `<div class="name-alt" dir="rtl" lang="he">${esc(p.name.he)}</div>` : ''}
+        <div class="name-en">${esc(p.name.en)}</div>
+        <div class="meta"><span class="tag">${esc(p.commLabel)}</span><span>${p.genderLabel}</span><span>Age ${p.age}</span><span>Born ${esc(p.dob)}</span></div>
+      </div>
+      ${reroll('name', 'New name')}
+    </div>
+    <div class="grid">
+      <section class="sec">
+        <div class="sec-head"><h2>Identity</h2></div>
+        <dl class="kv">
+          ${p.name.origin ? `<dt>Family origin</dt><dd>${esc(p.name.origin.text)}</dd>` : ''}
+          <dt>Languages</dt><dd>${p.languages.map(esc).join('<br>')}</dd>
+          <dt>Status</dt><dd>${esc(p.marital)}</dd>
+        </dl>
+      </section>
+      <section class="sec">
+        <div class="sec-head"><h2>Hometown</h2>${reroll('place', 'Reroll')}</div>
+        <dl class="kv">
+          <dt>City</dt><dd>${esc(pl.en)} · ${he(pl.he)}${pl.ar ? ` · ${ar(pl.ar)}` : ''}<span class="sub">${esc(pl.dist)}</span></dd>
+          ${pl.hood ? `<dt>Neighborhood</dt><dd>${esc(pl.hood.en)} · ${he(pl.hood.he)}</dd>` : ''}
+          <dt>Team</dt><dd>${esc(pl.team)}</dd>
+        </dl>
+      </section>
+      <section class="sec wide">
+        <div class="sec-head"><h2>Background</h2>${reroll('life', 'Reroll')}</div>
+        <dl class="kv">
+          <dt>Service</dt><dd>${esc(s.title)}${s.unitHe ? ` · ${he(s.unitHe)}` : ''}${s.detail ? `<span class="sub">${esc(s.detail)}</span>` : ''}</dd>
+          ${s.reserve ? `<dt>Reserve duty</dt><dd>${esc(s.reserve)}</dd>` : ''}
+          <dt>Education</dt><dd>${esc(e.title)}${e.status !== 'none' ? `<span class="sub">${esc(e.inst.en)} · ${he(e.inst.he)}${e.end ? ` · ${e.start}–${e.end}` : ''}</span>` : `<span class="sub">${esc(e.detail)}</span>`}${e.masters ? `<span class="sub">${esc(e.masters)}</span>` : ''}</dd>
+          <dt>Occupation</dt><dd>${esc(p.job.en)}<span class="sub">${he(p.job.he)}</span></dd>
+          <dt>Travel</dt><dd>${p.travel.length ? p.travel.map(esc).join('<br>') : 'No notable trips'}</dd>
+        </dl>
+      </section>
+      <section class="sec">
+        <div class="sec-head"><h2>Interests</h2>${reroll('interests', 'Reroll')}</div>
+        <div class="chips">${p.interests.map(i => `<span class="chip">${esc(i.en)}${he(i.he)}</span>`).join('')}</div>
+      </section>
+      <section class="sec">
+        <div class="sec-head"><h2>Activity rhythm</h2></div>
+        <ul class="list">${p.rhythm.map(x => `<li>${esc(x)}</li>`).join('')}<li>${esc(p.locale)}</li></ul>
+      </section>
+      <section class="sec wide">
+        <div class="sec-head"><h2>Online presence</h2>${reroll('online', 'Reroll')}</div>
+        <div class="online">
+          <div>
+            <span class="lbl">Handles · click to copy</span>
+            <div class="handles" style="margin-top:8px">${p.handles.map(h => `<button type="button" class="handle" data-copy="${esc(h)}" data-label="${esc(h)}">${esc(h)}</button>`).join('')}</div>
+          </div>
+          <div class="copyrow"><div><span class="lbl">Bio · English</span><p dir="auto">${esc(p.bio.en)}</p></div>${copyBtn(p.bio.en, 'English bio')}</div>
+          <div class="copyrow"><div><span class="lbl">Bio · Hebrew</span><p dir="rtl" lang="he">${esc(p.bio.he)}</p></div>${copyBtn(p.bio.he, 'Hebrew bio')}</div>
+          ${p.group !== 'jewish' ? '<p class="hint">An Arabic bio is not generated. Write one with a native speaker so it reads naturally.</p>' : ''}
+          <div class="copyrow"><div><span class="lbl">Profile photo prompt · for an AI image generator</span><p class="prompt">${esc(p.photo)}</p></div>${copyBtn(p.photo, 'photo prompt')}</div>
+          <dl class="kv">
+            <dt>Fits on</dt><dd>${p.platforms.map(esc).join(', ')}</dd>
+            <dt>Phone</dt><dd>Use a real number you control. None is generated.</dd>
+          </dl>
+        </div>
+      </section>
+    </div>`;
+  }
+
+  function render() {
+    const code = encodeCode(state.seed, state.salts);
+    state.p = generate(state.seed, readOpts(), state.salts);
+    state.code = code;
+    const file = $('#file');
+    file.innerHTML = view(state.p, code);
+    file.classList.remove('fresh'); void file.offsetWidth; file.classList.add('fresh');
+    if (document.activeElement !== $('#seed')) $('#seed').value = code;
+  }
+
+  let toastTimer;
+  function toast(msg) {
+    const t = $('#toast');
+    t.textContent = msg; t.classList.add('show');
+    clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('show'), 1600);
+  }
+  function fallback(text) {
+    $('#ov-text').value = text;
+    $('#overlay').hidden = false;
+    $('#ov-text').focus(); $('#ov-text').select();
+  }
+  function copy(text, label) {
+    if (!navigator.clipboard) { fallback(text); return; }
+    navigator.clipboard.writeText(text).then(() => toast(`Copied ${label}`), () => fallback(text));
+  }
+
+  $('#ov-close').addEventListener('click', () => { $('#overlay').hidden = true; });
+  $('#overlay').addEventListener('click', ev => { if (ev.target.id === 'overlay') $('#overlay').hidden = true; });
+  document.addEventListener('keydown', ev => { if (ev.key === 'Escape') $('#overlay').hidden = true; });
+
+  $('#newPersona').addEventListener('click', () => {
+    state.seed = randomSeed();
+    SALT_KEYS.forEach(k => { state.salts[k] = 0; });
+    $('#seed').value = '';
+    render();
+  });
+  $('#controls').addEventListener('submit', ev => {
+    ev.preventDefault();
+    const v = $('#seed').value.trim();
+    if (v) { const d = decodeCode(v); state.seed = d.seed; state.salts = d.salts; }
+    $('#seed').blur();
+    render();
+  });
+  $('#seed').addEventListener('change', () => $('#controls').requestSubmit());
+  ['#community', '#ageMin', '#ageMax'].forEach(s => $(s).addEventListener('change', render));
+  document.querySelectorAll('input[name="gender"]').forEach(el => el.addEventListener('change', render));
+
+  $('#file').addEventListener('click', ev => {
+    const rr = ev.target.closest('[data-reroll]');
+    if (rr) { state.salts[rr.dataset.reroll] = (state.salts[rr.dataset.reroll] + 1) % 36; render(); return; }
+    const cp = ev.target.closest('[data-copy]');
+    if (cp) copy(cp.dataset.copy, cp.dataset.label);
+  });
+  $('#copyText').addEventListener('click', () => copy(legendText(state.p, state.code), 'legend'));
+  $('#copyJson').addEventListener('click', () => copy(JSON.stringify({ code: state.code, settings: readOpts(), generated: new Date().toISOString().slice(0, 10), persona: state.p }, (k, v) => (k === 'field' || k === 'jobs') ? undefined : v, 2), 'JSON'));
+
+  render();
+}
+</script>
+</body>
+</html>
