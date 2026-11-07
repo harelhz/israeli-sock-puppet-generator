@@ -8,7 +8,11 @@ It is one HTML file with no build step, no dependencies and no network calls apa
 
 ## Use it
 
-Download `index.html` and open it in any modern browser, or clone the repo:
+**Online:** https://harelhz.github.io/israeli-sock-puppet-generator/
+
+Everything still runs in your browser there; the page makes no requests with your data.
+
+**Offline:** download `index.html` and open it in any modern browser, or clone the repo:
 
 ```bash
 git clone https://github.com/harelhz/israeli-sock-puppet-generator.git
